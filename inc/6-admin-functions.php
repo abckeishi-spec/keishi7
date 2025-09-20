@@ -100,15 +100,37 @@ function gi_grant_column_content($column, $post_id) {
 
 
 /**
- * 都道府県データ初期化メニューを管理画面に追加
+ * 管理メニューの追加
  */
 function gi_add_admin_menu() {
+    // 都道府県データ初期化
     add_management_page(
         '都道府県データ初期化',
         '都道府県データ初期化',
         'manage_options',
         'gi-prefecture-init',
         'gi_add_prefecture_init_button'
+    );
+    
+    // AI設定メニュー追加
+    add_menu_page(
+        'AI検索設定',
+        'AI検索設定',
+        'manage_options',
+        'gi-ai-settings',
+        'gi_ai_settings_page',
+        'dashicons-search',
+        30
+    );
+    
+    // AI検索統計サブメニュー
+    add_submenu_page(
+        'gi-ai-settings',
+        'AI検索統計',
+        '統計・レポート',
+        'manage_options',
+        'gi-ai-statistics',
+        'gi_ai_statistics_page'
     );
 }
 add_action('admin_menu', 'gi_add_admin_menu');
@@ -140,6 +162,125 @@ function gi_add_prefecture_init_button() {
             <p class="description">この操作は既存の都道府県タクソノミーに不足しているデータを追加するもので、既存のデータを削除するものではありません。</p>
             <input type="submit" name="init_prefecture_data" class="button button-primary" value="都道府県データを初期化" />
         </form>
+    </div>
+    <?php
+}
+
+/**
+ * AI設定ページ（簡易版）
+ */
+function gi_ai_settings_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    
+    // 設定の保存処理
+    if (isset($_POST['save_ai_settings']) && wp_verify_nonce($_POST['ai_settings_nonce'], 'gi_ai_settings')) {
+        $settings = [
+            'enable_ai_search' => isset($_POST['enable_ai_search']) ? 1 : 0,
+            'enable_voice_input' => isset($_POST['enable_voice_input']) ? 1 : 0,
+            'enable_ai_chat' => isset($_POST['enable_ai_chat']) ? 1 : 0
+        ];
+        
+        update_option('gi_ai_settings', $settings);
+        echo '<div class="notice notice-success"><p>設定を保存しました。</p></div>';
+    }
+    
+    // 現在の設定を取得
+    $settings = get_option('gi_ai_settings', [
+        'enable_ai_search' => 1,
+        'enable_voice_input' => 1,
+        'enable_ai_chat' => 1
+    ]);
+    ?>
+    <div class="wrap">
+        <h1>AI検索設定</h1>
+        
+        <form method="post" action="">
+            <?php wp_nonce_field('gi_ai_settings', 'ai_settings_nonce'); ?>
+            
+            <table class="form-table">
+                <tr>
+                    <th scope="row">AI検索を有効化</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_ai_search" value="1" 
+                                <?php checked($settings['enable_ai_search'], 1); ?>>
+                            AIによる高度な検索機能を有効にする
+                        </label>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">音声入力を有効化</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_voice_input" value="1" 
+                                <?php checked($settings['enable_voice_input'], 1); ?>>
+                            音声による検索入力を有効にする
+                        </label>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <th scope="row">AIチャットを有効化</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enable_ai_chat" value="1" 
+                                <?php checked($settings['enable_ai_chat'], 1); ?>>
+                            AIアシスタントとのチャット機能を有効にする
+                        </label>
+                    </td>
+                </tr>
+            </table>
+            
+            <p class="submit">
+                <input type="submit" name="save_ai_settings" class="button-primary" value="設定を保存">
+            </p>
+        </form>
+    </div>
+    <?php
+}
+
+/**
+ * AI統計ページ（簡易版）
+ */
+function gi_ai_statistics_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    
+    global $wpdb;
+    
+    // テーブルが存在するかチェック
+    $search_table = $wpdb->prefix . 'gi_search_history';
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$search_table'") === $search_table;
+    
+    if (!$table_exists) {
+        ?>
+        <div class="wrap">
+            <h1>AI検索統計</h1>
+            <div class="notice notice-info">
+                <p>統計データテーブルがまだ作成されていません。初回の検索実行時に自動的に作成されます。</p>
+            </div>
+        </div>
+        <?php
+        return;
+    }
+    
+    // 総検索数
+    $total_searches = $wpdb->get_var("SELECT COUNT(*) FROM $search_table") ?: 0;
+    
+    ?>
+    <div class="wrap">
+        <h1>AI検索統計</h1>
+        
+        <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin-top: 20px;">
+            <h3 style="margin-top: 0;">総検索数</h3>
+            <p style="font-size: 32px; font-weight: bold; color: #10b981;">
+                <?php echo number_format($total_searches); ?>
+            </p>
+        </div>
     </div>
     <?php
 }

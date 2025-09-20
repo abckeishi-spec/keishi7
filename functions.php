@@ -484,10 +484,7 @@ function gi_register_ai_ajax_handlers() {
         wp_send_json_success(['message' => 'Connection successful (nopriv)', 'time' => current_time('Y-m-d H:i:s')]);
     });
     
-    // AI検索とチャットのハンドラーが存在することを確認
-    if (!has_action('wp_ajax_gi_ai_search')) {
-        require_once get_template_directory() . '/3-ajax-functions.php';
-    }
+    // AI検索とチャットのハンドラーが存在することを確認（inc/3-ajax-functions.phpで定義済み）
 }
 add_action('init', 'gi_register_ai_ajax_handlers', 5);
 
