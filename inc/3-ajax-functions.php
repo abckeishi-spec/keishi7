@@ -2145,38 +2145,7 @@ function gi_transcribe_audio($audio_data) {
     return '補助金を探しています';
 }
 
-/**
- * セーフなメタデータ取得ヘルパー
- */
-if (!function_exists('gi_safe_get_meta')) {
-    function gi_safe_get_meta($post_id, $key, $default = '') {
-        $value = get_post_meta($post_id, $key, true);
-        return $value ?: $default;
-    }
-}
-
-/**
- * セーフなエスケープヘルパー
- */
-if (!function_exists('gi_safe_escape')) {
-    function gi_safe_escape($text) {
-        return esc_html($text);
-    }
-}
-
-/**
- * ステータスマッピングヘルパー
- */
-if (!function_exists('gi_map_application_status_ui')) {
-    function gi_map_application_status_ui($status) {
-        $status_map = [
-            'open' => 'active',
-            'closed' => 'closed',
-            'upcoming' => 'upcoming'
-        ];
-        return $status_map[$status] ?? $status;
-    }
-}
+// ヘルパー関数は4-helper-functions.phpで定義済み
 
 /**
  * AJAX エラーログ記録
