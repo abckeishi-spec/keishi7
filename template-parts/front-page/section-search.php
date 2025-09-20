@@ -76,58 +76,24 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
             <div class="ai-main-content">
                 
                 <!-- Left: AI Assistant -->
-                <div class="ai-assistant-panel" data-concierge="ultimate">
+                <div class="ai-assistant-panel">
                     <div class="assistant-header">
                         <div class="assistant-avatar">
-                            <div class="ai-avatar-animated">
-                                <div class="ai-avatar-ring"></div>
-                                <span class="avatar-text">AI</span>
-                            </div>
+                            <div class="avatar-ring"></div>
+                            <span class="avatar-icon">AI</span>
                         </div>
-                        <div class="emotion-indicator" title="AI感情状態"></div>
                         <div class="assistant-info">
-                            <h3 class="assistant-name">補助金AIコンシェルジュ Ultimate</h3>
-                            <span class="assistant-status" data-status="online">オンライン・24/7対応中</span>
+                            <h3 class="assistant-name">補助金AIアシスタント</h3>
+                            <span class="assistant-status">オンライン</span>
                         </div>
                     </div>
                     
                     <div class="chat-messages" id="chat-messages">
-                        <div class="message message-ai fade-in show">
-                            <div class="message-avatar">
-                                <div class="ai-avatar-animated">
-                                    <div class="ai-avatar-ring"></div>
-                                    <span class="avatar-text">AI</span>
-                                </div>
+                        <div class="message message-ai">
+                            <div class="message-bubble">
+                                どのような補助金をお探しですか？<br>
+                                業種や目的をお聞かせください。
                             </div>
-                            <div class="message-content">
-                                <div class="message-bubble">
-                                    こんにちは！私は最新AI技術を搭載した補助金コンシェルジュです。<br>
-                                    <strong>以下のようなご相談に対応できます：</strong><br>
-                                    • 🔍 あなたに最適な補助金の検索<br>
-                                    • 📝 申請手続きの詳細な説明<br>
-                                    • 📊 採択率向上のアドバイス<br>
-                                    • ⏰ 締切日程の管理<br>
-                                    <br>
-                                    どのようなご要望でもお気軽にお聞かせください！
-                                </div>
-                                <div class="message-timestamp"><?php echo date('H:i'); ?></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Statistics Display -->
-                    <div class="chat-stats" id="chat-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">応答時間</span>
-                            <span class="stat-value" id="response-time">0.3秒</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">満足度</span>
-                            <span class="stat-value" id="satisfaction">98%</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">解決率</span>
-                            <span class="stat-value" id="resolution">95%</span>
                         </div>
                     </div>
                     
@@ -149,12 +115,10 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 
                     <!-- Quick Questions -->
                     <div class="quick-questions">
-                        <button class="quick-q" data-q="IT導入補助金について詳しく教えて"><span>💻 IT導入補助金</span></button>
-                        <button class="quick-q" data-q="ものづくり補助金の申請方法"><span>🏭 ものづくり補助金</span></button>
-                        <button class="quick-q" data-q="事業再構築補助金の要件は？"><span>🔄 事業再構築</span></button>
-                        <button class="quick-q" data-q="小規模事業者持続化補助金"><span>🏪 持続化補助金</span></button>
-                        <button class="quick-q" data-q="私に合う補助金を探して"><span>🎯 オススメ検索</span></button>
-                        <button class="quick-q" data-q="申請スケジュールを作成して"><span>📅 スケジュール</span></button>
+                        <button class="quick-q" data-q="申請の流れを教えて">申請の流れ</button>
+                        <button class="quick-q" data-q="必要書類は？">必要書類</button>
+                        <button class="quick-q" data-q="締切はいつ？">締切確認</button>
+                        <button class="quick-q" data-q="採択率は？">採択率</button>
                     </div>
                 </div>
 
@@ -269,9 +233,7 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     </div>
 </section>
 
-<!-- AI Concierge Ultimate Scripts & Styles -->
-<link rel="stylesheet" href="<?php echo get_template_directory_uri(); ?>/assets/css/ai-concierge-ultimate.css?v=2.0.0">
-<script src="<?php echo get_template_directory_uri(); ?>/assets/js/ai-concierge-ultimate.js?v=2.0.0" defer></script>
+<!-- AI Concierge Scripts - Removed Ultimate version to keep original design -->
 
 <style>
 /* AI Search Section Styles */
@@ -520,80 +482,39 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     margin-bottom: 48px;
 }
 
-/* AI Assistant Panel - Premium Design */
+/* AI Assistant Panel - Original Stylish Design */
 .ai-assistant-panel {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 24px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
     display: flex;
     flex-direction: column;
-    height: 680px;
-    box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
-    position: relative;
+    height: 600px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     overflow: hidden;
 }
 
-.ai-assistant-panel::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-    animation: float 20s infinite linear;
-}
-
-@keyframes float {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 .assistant-header {
-    padding: 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 20px;
+    border-bottom: 1px solid #f0f0f0;
     display: flex;
     align-items: center;
     gap: 16px;
-    background: rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    position: relative;
-    z-index: 2;
+    background: #fafafa;
 }
 
 .assistant-avatar {
     position: relative;
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
 }
 
 .avatar-ring {
     position: absolute;
-    inset: -4px;
-    border: 3px solid;
-    border-image: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #667eea) 1;
+    inset: -2px;
+    border: 2px solid #000;
     border-radius: 50%;
-    animation: rotateGradient 3s infinite linear;
-}
-
-.avatar-ring::before {
-    content: '';
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    opacity: 0.5;
-    filter: blur(10px);
-    animation: pulse 2s infinite;
-}
-
-@keyframes rotateGradient {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 0.5; transform: scale(1); }
-    50% { opacity: 0.8; transform: scale(1.1); }
+    opacity: 0.1;
 }
 
 .avatar-icon {
@@ -602,13 +523,11 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: #000;
     color: #fff;
     border-radius: 50%;
-    font-size: 18px;
-    font-weight: 900;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    font-size: 16px;
+    font-weight: 700;
 }
 
 .assistant-info {
@@ -616,16 +535,15 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 }
 
 .assistant-name {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 600;
     margin: 0;
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    color: #000;
 }
 
 .assistant-status {
     font-size: 12px;
-    color: #a5f3fc;
+    color: #10b981;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -634,12 +552,11 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 
 .assistant-status::before {
     content: '';
-    width: 8px;
-    height: 8px;
-    background: #10f981;
+    width: 6px;
+    height: 6px;
+    background: #10b981;
     border-radius: 50%;
-    animation: blink 1s infinite;
-    box-shadow: 0 0 10px #10f981;
+    animation: blink 2s infinite;
 }
 
 @keyframes blink {
@@ -647,17 +564,15 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     50% { opacity: 0.5; }
 }
 
-/* Chat Messages - Premium Style */
+/* Chat Messages - Clean Style */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 24px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    background: rgba(255, 255, 255, 0.95);
-    position: relative;
-    z-index: 1;
+    gap: 16px;
+    background: #fff;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -730,16 +645,14 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 }
 
 .message-ai .message-bubble {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    background: #f3f4f6;
+    color: #1f2937;
     border-bottom-left-radius: 4px;
 }
 
 .message-user .message-bubble {
-    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-    color: #212529;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    background: #000;
+    color: #fff;
     border-bottom-right-radius: 4px;
 }
 
@@ -772,13 +685,40 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     display: block;
 }
 
-/* Chat Input - Modern Style */
+/* Grant links in messages */
+.grant-name {
+    color: #000;
+    font-weight: 700;
+    background: rgba(0,0,0,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.grant-link {
+    color: #2563eb;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.grant-link:hover {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.message-ai .grant-link {
+    color: #2563eb;
+}
+
+.message-user .grant-link {
+    color: #60a5fa;
+}
+
+/* Chat Input - Clean Style */
 .chat-input-area {
-    padding: 20px;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
-    border-top: 1px solid rgba(102, 126, 234, 0.2);
+    padding: 16px;
+    background: #fafafa;
+    border-top: 1px solid #e0e0e0;
     position: relative;
-    backdrop-filter: blur(10px);
 }
 
 .typing-indicator {
@@ -815,9 +755,12 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 }
 
 .typing-cursor {
-    color: #667eea;
-    font-weight: 100;
+    display: inline-block;
+    width: 2px;
+    height: 16px;
+    background: #000;
     margin-left: 2px;
+    animation: cursorBlink 1s infinite;
 }
 
 .chat-input {
@@ -1548,9 +1491,26 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                     this.displayResults(data.data.grants);
                     this.updateResultsCount(data.data.count);
                     
-                    // Add AI response to chat
+                    // Add AI response to chat with grant links
                     if (data.data.ai_response) {
-                        this.addChatMessage(data.data.ai_response, 'ai');
+                        // 補助金リンクを処理
+                        const recommendedGrants = this.processGrantLinks(data.data.ai_response);
+                        
+                        // リンク付きメッセージを追加
+                        let enrichedResponse = data.data.ai_response;
+                        if (data.data.related_grants && data.data.related_grants.length > 0) {
+                            enrichedResponse += '\n\n📋 **関連する補助金:**\n';
+                            data.data.related_grants.forEach(grant => {
+                                enrichedResponse += `• [${grant.title}](${grant.permalink})\n`;
+                            });
+                        }
+                        
+                        this.addChatMessage(enrichedResponse, 'ai');
+                        
+                        // 推奨された補助金で検索を更新
+                        if (recommendedGrants.length > 0) {
+                            this.updateSearchWithRecommendations(recommendedGrants);
+                        }
                     }
                 } else {
                     const errorMsg = data.data?.message || data.data || '検索エラーが発生しました';
@@ -1714,11 +1674,14 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble';
             
-            // テキストを処理（改行やリンクなど）
+            // テキストを処理（改行、リンク、補助金名など）
             let processedText = text
                 .replace(/\n/g, '<br>')
-                .replace(/【([^】]+)】/g, '<strong>$1</strong>')
-                .replace(/https?:\/\/[^\s]+/g, '<a href="$&" target="_blank" rel="noopener">$&</a>');
+                .replace(/【([^】]+)】/g, '<strong class="grant-name">$1</strong>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="grant-link">$1</a>')
+                .replace(/https?:\/\/[^\s]+/g, '<a href="$&" target="_blank" rel="noopener">$&</a>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/•/g, '<span style="color: #000;">•</span>');
             
             bubble.innerHTML = processedText;
             
@@ -1761,6 +1724,33 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
             }
         }
 
+        // AIからの補助金リンクを処理
+        processGrantLinks(text) {
+            // 補助金名のパターンを検出（例：【IT導入補助金】）
+            const grantPattern = /【([^】]+補助金[^】]*)】/g;
+            const grants = [];
+            let match;
+            
+            while ((match = grantPattern.exec(text)) !== null) {
+                grants.push(match[1]);
+            }
+            
+            return grants;
+        },
+        
+        // 検索結果にAIの推奨を反映
+        updateSearchWithRecommendations(grants) {
+            if (grants.length > 0) {
+                // 検索入力欄に最初の補助金名をセット
+                this.elements.searchInput.value = grants[0];
+                // 自動検索実行
+                this.performSearch();
+                
+                // ユーザーに通知
+                this.showNotification(`${grants.length}件の補助金を検索結果に表示しました`, 'success');
+            }
+        },
+        
         typeMessage(text, callback) {
             // AIアバターを作成
             const messageDiv = document.createElement('div');
