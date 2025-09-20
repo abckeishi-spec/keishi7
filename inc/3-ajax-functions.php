@@ -1938,27 +1938,170 @@ function gi_calculate_relevance_score($post_id, $keywords) {
 }
 
 /**
- * AI検索応答生成
+ * AI検索応答生成（改良版）
  */
 function gi_generate_ai_search_response($query, $grants) {
     $count = count($grants);
     
     if ($count === 0) {
-        return "申し訳ございません。「{$query}」に該当する補助金は見つかりませんでした。検索条件を変更してみてください。";
+        // より具体的な提案を含む応答
+        $alternatives = gi_suggest_alternatives($query);
+        $response = "「{$query}」に完全に一致する補助金は見つかりませんでしたが、";
+        if (!empty($alternatives)) {
+            $response .= "関連するキーワード「" . implode('」「', $alternatives) . "」で検索してみてはいかがでしょうか。";
+        } else {
+            $response .= "検索条件を変更してお試しください。例えば、業種名や「IT」「製造業」などの一般的なキーワードをお試しください。";
+        }
+        return $response;
     }
     
-    $response = "{$count}件の補助金が見つかりました。";
+    // クエリの内容に応じた文脈的な応答
+    $response = "";
     
-    if ($count > 0 && isset($grants[0])) {
-        $top_grant = $grants[0];
-        $response .= "特におすすめは「{$top_grant['title']}」です。";
+    // クエリ内容の分析
+    $query_lower = mb_strtolower($query);
+    $is_specific_grant = preg_match('/補助金|助成金/u', $query);
+    $has_industry = preg_match('/IT|製造|飲食|小売|サービス|建設/u', $query);
+    $has_purpose = preg_match('/設備|機械|システム|販促|人材|研究/u', $query);
+    
+    // 検索結果の分析
+    $total_amount = 0;
+    $categories = [];
+    $deadlines_soon = 0;
+    $high_success_rate = 0;
+    
+    foreach ($grants as $grant) {
+        if (isset($grant['amount'])) {
+            $amount_num = preg_replace('/[^0-9]/', '', $grant['amount']);
+            if (is_numeric($amount_num)) {
+                $total_amount = max($total_amount, intval($amount_num));
+            }
+        }
         
-        if ($top_grant['amount']) {
-            $response .= "最大{$top_grant['amount']}の支援が受けられます。";
+        if (isset($grant['categories']) && is_array($grant['categories'])) {
+            $categories = array_merge($categories, $grant['categories']);
+        }
+        
+        if (isset($grant['deadline'])) {
+            $deadline_date = strtotime($grant['deadline']);
+            if ($deadline_date && $deadline_date < strtotime('+30 days')) {
+                $deadlines_soon++;
+            }
+        }
+        
+        if (isset($grant['success_rate']) && $grant['success_rate'] > 70) {
+            $high_success_rate++;
         }
     }
     
+    $categories = array_unique($categories);
+    
+    // 動的な応答生成
+    if ($has_industry) {
+        $response = "「{$query}」に関連する補助金が{$count}件見つかりました。";
+    } elseif ($has_purpose) {
+        $response = "{$query}に活用できる補助金が{$count}件あります。";
+    } else {
+        $response = "検索結果：{$count}件の補助金が該当しました。";
+    }
+    
+    // トップ3の補助金を詳しく説明
+    if ($count >= 3) {
+        $response .= "\n\n【特におすすめの補助金TOP3】\n";
+        
+        for ($i = 0; $i < min(3, $count); $i++) {
+            $grant = $grants[$i];
+            $response .= "\n" . ($i + 1) . ". " . $grant['title'];
+            
+            // 詳細情報を追加
+            $details = [];
+            if (!empty($grant['amount'])) {
+                $details[] = "最大" . $grant['amount'];
+            }
+            if (!empty($grant['success_rate'])) {
+                $details[] = "採択率" . $grant['success_rate'] . "%";
+            }
+            if (!empty($grant['deadline'])) {
+                $deadline_date = strtotime($grant['deadline']);
+                if ($deadline_date) {
+                    $days_left = ceil(($deadline_date - time()) / 86400);
+                    if ($days_left > 0 && $days_left <= 30) {
+                        $details[] = "締切まであと{$days_left}日";
+                    } elseif ($days_left > 30) {
+                        $details[] = "締切:" . date('Y年n月j日', $deadline_date);
+                    }
+                }
+            }
+            
+            if (!empty($details)) {
+                $response .= "（" . implode('、', $details) . "）";
+            }
+            
+            // 簡単な説明を追加
+            if (!empty($grant['excerpt'])) {
+                $response .= "\n   " . mb_substr($grant['excerpt'], 0, 50) . "...";
+            }
+        }
+    } elseif ($count > 0) {
+        // 1-2件の場合はより詳細に
+        foreach ($grants as $i => $grant) {
+            if ($i > 0) $response .= "\n";
+            $response .= "\n【" . $grant['title'] . "】";
+            if (!empty($grant['amount'])) {
+                $response .= "\n• 補助上限：" . $grant['amount'];
+            }
+            if (!empty($grant['organization'])) {
+                $response .= "\n• 実施機関：" . $grant['organization'];
+            }
+            if (!empty($grant['deadline'])) {
+                $response .= "\n• 申請締切：" . $grant['deadline'];
+            }
+        }
+    }
+    
+    // 追加のアドバイス
+    if ($deadlines_soon > 0) {
+        $response .= "\n\n⚠️ {$deadlines_soon}件の補助金が締切間近です。お早めのご準備をおすすめします。";
+    }
+    
+    if ($high_success_rate > 0) {
+        $response .= "\n\n✨ {$high_success_rate}件は採択率70%以上の狙い目補助金です。";
+    }
+    
+    if ($total_amount >= 1000) {
+        $response .= "\n\n💰 最大" . number_format($total_amount) . "万円の大型補助金も含まれています。";
+    }
+    
+    // カテゴリ情報
+    if (count($categories) > 1) {
+        $response .= "\n\n📂 カテゴリ：" . implode('、', array_slice($categories, 0, 3));
+    }
+    
     return $response;
+}
+
+/**
+ * 代替検索キーワードの提案
+ */
+function gi_suggest_alternatives($query) {
+    $alternatives = [];
+    
+    // 一般的な類義語マッピング
+    $synonyms = [
+        'デジタル' => ['IT', 'DX', 'システム'],
+        '製造' => ['ものづくり', '工場', '生産'],
+        '環境' => ['エコ', 'グリーン', '省エネ'],
+        '人材' => ['雇用', '採用', '教育'],
+        '設備' => ['機械', '装置', 'システム']
+    ];
+    
+    foreach ($synonyms as $key => $values) {
+        if (mb_stripos($query, $key) !== false) {
+            $alternatives = array_merge($alternatives, $values);
+        }
+    }
+    
+    return array_unique($alternatives);
 }
 
 /**
@@ -1990,19 +2133,272 @@ function gi_analyze_user_intent($message) {
 }
 
 /**
- * チャット応答生成
+ * チャット応答生成（改良版）
  */
 function gi_generate_chat_response($message, $intent, $context) {
-    $responses = [
-        'grant_search' => 'お探しの補助金について詳しくお聞かせください。業種や目的を教えていただければ、最適な補助金をご提案いたします。',
-        'application_help' => '申請手続きについてサポートいたします。どちらの補助金の申請をご検討でしょうか？',
-        'deadline_check' => '締切を確認いたします。どちらの補助金についてお調べしましょうか？',
-        'amount_inquiry' => '補助金額について確認いたします。具体的な事業内容を教えていただけますか？',
-        'eligibility' => '対象条件を確認いたします。御社の業種と従業員数を教えていただけますか？',
-        'general' => 'ご質問ありがとうございます。どのような補助金情報をお探しでしょうか？'
+    // OpenAI API設定を確認
+    $ai_settings = get_option('gi_ai_settings', []);
+    $api_key = get_option('gi_openai_api_key', '');
+    
+    // APIキーが設定されている場合は実際のAI応答を生成
+    if (!empty($api_key)) {
+        return gi_generate_openai_response($message, $intent, $context);
+    }
+    
+    // APIキーがない場合は改良版のローカル応答を生成
+    return gi_generate_enhanced_local_response($message, $intent, $context);
+}
+
+/**
+ * 改良版ローカル応答生成（APIキーなしでも多様な応答）
+ */
+function gi_generate_enhanced_local_response($message, $intent, $context) {
+    // メッセージから具体的な情報を抽出
+    $has_industry = preg_match('/製造|IT|飲食|小売|サービス|建設|医療|介護/u', $message);
+    $has_employee = preg_match('/(\d+)[人名]/u', $message, $employee_match);
+    $has_amount = preg_match('/(\d+)[万円]/u', $message, $amount_match);
+    $has_location = preg_match('/東京|大阪|愛知|福岡|北海道|[都道府県]/u', $message, $location_match);
+    
+    // コンテキストから過去の会話を考慮
+    $previous_topics = [];
+    if (is_array($context) && count($context) > 0) {
+        foreach ($context as $ctx) {
+            if (isset($ctx['user'])) {
+                $previous_topics[] = $ctx['user'];
+            }
+        }
+    }
+    
+    // 意図別の動的応答生成
+    $response = '';
+    
+    switch ($intent['type']) {
+        case 'grant_search':
+            if ($has_industry) {
+                $industry = $employee_match[0] ?? '該当業種';
+                $response = "承知いたしました。{$industry}向けの補助金をお探しですね。";
+                
+                // 業種別の推奨補助金を提案
+                if (strpos($message, 'IT') !== false || strpos($message, 'デジタル') !== false) {
+                    $response .= "IT導入補助金（最大450万円）やDX推進補助金がおすすめです。";
+                } elseif (strpos($message, '製造') !== false || strpos($message, 'ものづくり') !== false) {
+                    $response .= "ものづくり補助金（最大1,250万円）が最適です。設備投資にも活用できます。";
+                } elseif (strpos($message, '飲食') !== false || strpos($message, '小売') !== false) {
+                    $response .= "小規模事業者持続化補助金（最大200万円）や事業再構築補助金をご検討ください。";
+                }
+            } else {
+                $response = "どのような事業をされていますか？業種や規模を教えていただければ、より具体的な補助金をご提案できます。";
+            }
+            break;
+            
+        case 'application_help':
+            $response = "申請のサポートをいたします。";
+            if (count($previous_topics) > 0) {
+                $response .= "先ほどお話しいただいた内容から、";
+            }
+            $response .= "まずは必要書類の準備から始めましょう。事業計画書、決算書、登記簿謄本などが基本書類となります。";
+            break;
+            
+        case 'deadline_check':
+            // 現在の月を考慮した応答
+            $current_month = date('n');
+            if ($current_month >= 1 && $current_month <= 3) {
+                $response = "年度末に向けて多くの補助金の締切が近づいています。";
+            } elseif ($current_month >= 4 && $current_month <= 6) {
+                $response = "新年度の補助金募集が始まる時期です。";
+            } else {
+                $response = "現在募集中の補助金の締切を確認します。";
+            }
+            $response .= "具体的な補助金名を教えていただければ、正確な締切日をお伝えできます。";
+            break;
+            
+        case 'amount_inquiry':
+            if ($has_amount) {
+                $amount = $amount_match[1];
+                $response = "{$amount}万円規模の投資をご検討ですね。";
+                if (intval($amount) <= 200) {
+                    $response .= "小規模事業者持続化補助金や各自治体の補助金が適しています。";
+                } elseif (intval($amount) <= 1000) {
+                    $response .= "ものづくり補助金やIT導入補助金が該当します。";
+                } else {
+                    $response .= "事業再構築補助金など大型の補助金をご検討ください。";
+                }
+            } else {
+                $response = "どの程度の規模の投資をお考えですか？金額によって最適な補助金が異なります。";
+            }
+            break;
+            
+        case 'eligibility':
+            if ($has_employee) {
+                $employees = $employee_match[1];
+                $response = "従業員{$employees}名の企業様ですね。";
+                if (intval($employees) <= 20) {
+                    $response .= "小規模事業者向けの補助金が多数利用可能です。";
+                } elseif (intval($employees) <= 300) {
+                    $response .= "中小企業向けの幅広い補助金が対象となります。";
+                }
+            }
+            if ($has_location) {
+                $location = $location_match[0];
+                $response .= "{$location}では地域独自の補助金もございます。";
+            }
+            if (!$has_employee && !$has_location) {
+                $response = "対象条件の確認のため、従業員数と所在地を教えてください。";
+            }
+            break;
+            
+        default:
+            // より文脈に応じた一般応答
+            $keywords_found = [];
+            if (strpos($message, '始め') !== false || strpos($message, '初め') !== false) {
+                $response = "補助金のご相談ですね。まずは御社の業種と従業員数を教えていただけますか？それによって利用可能な補助金が変わってきます。";
+            } elseif (strpos($message, 'ありがとう') !== false) {
+                $response = "お役に立てて嬉しいです。他にもご質問があればお気軽にどうぞ。";
+            } elseif (strpos($message, 'もっと') !== false || strpos($message, '他に') !== false) {
+                $response = "他の選択肢もご紹介します。どのような条件を重視されますか？（例：補助率、上限額、申請の簡易さなど）";
+            } else {
+                $response = "ご質問ありがとうございます。「{$message}」について、もう少し詳しく教えていただけますか？";
+            }
+    }
+    
+    // 関連する補助金の提案を追加
+    $related_grants = gi_find_contextual_grants($message, $intent);
+    if (!empty($related_grants)) {
+        $response .= "\n\n【関連する補助金】\n";
+        foreach (array_slice($related_grants, 0, 3) as $grant) {
+            $response .= "• " . $grant['title'];
+            if ($grant['amount']) {
+                $response .= "（最大" . $grant['amount'] . "）";
+            }
+            $response .= "\n";
+        }
+    }
+    
+    return $response;
+}
+
+/**
+ * コンテキストに基づく補助金検索
+ */
+function gi_find_contextual_grants($message, $intent) {
+    $args = [
+        'post_type' => 'grant',
+        'posts_per_page' => 5,
+        'post_status' => 'publish'
     ];
     
-    return $responses[$intent['type']] ?? $responses['general'];
+    // メッセージから検索条件を動的に生成
+    $meta_query = [];
+    
+    // 金額での絞り込み
+    if (preg_match('/(\d+)[万円]/u', $message, $matches)) {
+        $amount = intval($matches[1]);
+        $meta_query[] = [
+            'key' => 'max_amount',
+            'value' => $amount,
+            'compare' => '>=',
+            'type' => 'NUMERIC'
+        ];
+    }
+    
+    // カテゴリでの絞り込み
+    $tax_query = [];
+    if (strpos($message, 'IT') !== false || strpos($message, 'デジタル') !== false) {
+        $tax_query[] = [
+            'taxonomy' => 'grant_category',
+            'field' => 'slug',
+            'terms' => ['it-support', 'digital-transformation']
+        ];
+    }
+    
+    if (!empty($meta_query)) {
+        $args['meta_query'] = $meta_query;
+    }
+    
+    if (!empty($tax_query)) {
+        $args['tax_query'] = $tax_query;
+    }
+    
+    // ランダム性を追加して多様性を確保
+    $args['orderby'] = 'rand';
+    
+    $query = new WP_Query($args);
+    $grants = [];
+    
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $grants[] = [
+                'id' => get_the_ID(),
+                'title' => get_the_title(),
+                'amount' => get_post_meta(get_the_ID(), 'max_amount', true) ?: get_post_meta(get_the_ID(), 'grant_amount', true)
+            ];
+        }
+        wp_reset_postdata();
+    }
+    
+    return $grants;
+}
+
+/**
+ * OpenAI API応答生成（将来の実装用）
+ */
+function gi_generate_openai_response($message, $intent, $context) {
+    $api_key = get_option('gi_openai_api_key', '');
+    
+    if (empty($api_key)) {
+        return gi_generate_enhanced_local_response($message, $intent, $context);
+    }
+    
+    // システムプロンプト
+    $system_prompt = "あなたは日本の補助金・助成金に詳しい専門アドバイザーです。ユーザーの質問に対して、具体的で実用的なアドバイスを提供してください。補助金の名称、金額、条件、締切などの情報を含めて回答してください。";
+    
+    // コンテキストを含めたメッセージ構築
+    $messages = [
+        ['role' => 'system', 'content' => $system_prompt]
+    ];
+    
+    // 過去の会話コンテキストを追加
+    if (!empty($context)) {
+        foreach (array_slice($context, -5) as $ctx) {
+            if (isset($ctx['user'])) {
+                $messages[] = ['role' => 'user', 'content' => $ctx['user']];
+            }
+            if (isset($ctx['assistant'])) {
+                $messages[] = ['role' => 'assistant', 'content' => $ctx['assistant']];
+            }
+        }
+    }
+    
+    // 現在のメッセージを追加
+    $messages[] = ['role' => 'user', 'content' => $message];
+    
+    // OpenAI APIリクエスト
+    $response = wp_remote_post('https://api.openai.com/v1/chat/completions', [
+        'headers' => [
+            'Authorization' => 'Bearer ' . $api_key,
+            'Content-Type' => 'application/json'
+        ],
+        'body' => json_encode([
+            'model' => 'gpt-3.5-turbo',
+            'messages' => $messages,
+            'max_tokens' => 500,
+            'temperature' => 0.7
+        ]),
+        'timeout' => 30
+    ]);
+    
+    if (is_wp_error($response)) {
+        return gi_generate_enhanced_local_response($message, $intent, $context);
+    }
+    
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    
+    if (isset($body['choices'][0]['message']['content'])) {
+        return $body['choices'][0]['message']['content'];
+    }
+    
+    return gi_generate_enhanced_local_response($message, $intent, $context);
 }
 
 /**
