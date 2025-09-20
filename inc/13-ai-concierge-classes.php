@@ -10,7 +10,9 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * ChatGPT Client - OpenAI API完全統合
+ * Note: 12-ai_concierge_function.phpで既に定義されている場合はスキップ
  */
+if (!class_exists('GI_ChatGPT_Client')) {
 class GI_ChatGPT_Client {
     
     private $api_key;
@@ -126,10 +128,12 @@ class GI_ChatGPT_Client {
         ];
     }
 }
+} // end if class_exists check
 
 /**
  * Session Manager - セッション管理
  */
+if (!class_exists('GI_Session_Manager')) {
 class GI_Session_Manager {
     
     private $session_table;
@@ -194,10 +198,12 @@ class GI_Session_Manager {
         return $this->update_session($session_id, ['status' => 'ended']);
     }
 }
+} // end if class_exists check
 
 /**
  * Semantic Search Engine - セマンティック検索エンジン
  */
+if (!class_exists('GI_Semantic_Search_Engine')) {
 class GI_Semantic_Search_Engine {
     
     /**
@@ -372,10 +378,12 @@ class GI_Semantic_Search_Engine {
         return $clauses;
     }
 }
+} // end if class_exists check
 
 /**
  * Context Manager - コンテキスト管理
  */
+if (!class_exists('GI_Context_Manager')) {
 class GI_Context_Manager {
     
     private $context_cache = [];
@@ -488,10 +496,12 @@ class GI_Context_Manager {
         return $entities;
     }
 }
+} // end if class_exists check
 
 /**
  * Emotion Analyzer - 感情分析
  */
+if (!class_exists('GI_Emotion_Analyzer')) {
 class GI_Emotion_Analyzer {
     
     /**
@@ -556,10 +566,12 @@ class GI_Emotion_Analyzer {
         ];
     }
 }
+} // end if class_exists check
 
 /**
  * Learning System - 学習システム
  */
+if (!class_exists('GI_Learning_System')) {
 class GI_Learning_System {
     
     private $learning_table;
@@ -669,8 +681,11 @@ class GI_Learning_System {
         );
     }
 }
+} // end if class_exists check
 
 // クラスのインスタンス化ヘルパー
-function gi_get_ai_concierge_instance() {
-    return GI_AI_Concierge::getInstance();
+if (!function_exists('gi_get_ai_concierge_instance')) {
+    function gi_get_ai_concierge_instance() {
+        return GI_AI_Concierge::getInstance();
+    }
 }
