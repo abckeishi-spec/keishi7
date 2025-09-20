@@ -210,7 +210,10 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
             <!-- Stats Bar -->
             <div class="stats-bar">
                 <div class="stat-item">
-                    <span class="stat-number" data-count="<?php echo wp_count_posts('grant')->publish; ?>">0</span>
+                    <span class="stat-number" data-count="<?php 
+                        $grant_posts = wp_count_posts('grant');
+                        echo isset($grant_posts->publish) ? $grant_posts->publish : 0;
+                    ?>">0</span>
                     <span class="stat-label">登録補助金</span>
                 </div>
                 <div class="stat-item">
@@ -1286,7 +1289,20 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                     credentials: 'same-origin'
                 });
 
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const text = await response.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('Invalid JSON response:', text);
+                    this.showError('サーバーからの応答が不正です: ' + text.substring(0, 100));
+                    return;
+                }
 
                 if (data.success) {
                     this.displayResults(data.data.grants);
@@ -1297,11 +1313,13 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                         this.addChatMessage(data.data.ai_response, 'ai');
                     }
                 } else {
-                    this.showError('検索エラーが発生しました');
+                    const errorMsg = data.data?.message || data.data || '検索エラーが発生しました';
+                    console.error('Search failed:', errorMsg);
+                    this.showError(errorMsg);
                 }
             } catch (error) {
                 console.error('Search error:', error);
-                this.showError('通信エラーが発生しました');
+                this.showError('通信エラーが発生しました: ' + error.message);
             } finally {
                 this.state.isSearching = false;
                 this.hideLoading();
@@ -1406,7 +1424,20 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                     credentials: 'same-origin'
                 });
 
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const text = await response.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('Invalid JSON response:', text);
+                    this.addChatMessage('サーバーエラー: 不正な応答形式です。', 'ai');
+                    return;
+                }
 
                 if (data.success) {
                     // Type AI response
@@ -1417,11 +1448,13 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                         this.displayResults(data.data.related_grants);
                     }
                 } else {
-                    this.addChatMessage('申し訳ございません。エラーが発生しました。', 'ai');
+                    const errorMsg = data.data?.message || data.data || '申し訳ございません。エラーが発生しました。';
+                    console.error('Chat failed:', errorMsg);
+                    this.addChatMessage(errorMsg, 'ai');
                 }
             } catch (error) {
                 console.error('Chat error:', error);
-                this.addChatMessage('通信エラーが発生しました。', 'ai');
+                this.addChatMessage('通信エラーが発生しました: ' + error.message, 'ai');
             } finally {
                 this.hideTyping();
             }

@@ -1603,7 +1603,11 @@ add_action('wp_ajax_gi_debug_info', 'gi_ajax_debug_info');
  * AI検索ハンドラー
  */
 function handle_ai_search() {
-    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    // nonceチェックをエラーハンドリング付きで実行
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'gi_ai_search_nonce')) {
+        wp_send_json_error(['message' => 'セキュリティチェックに失敗しました']);
+        return;
+    }
     
     $query = sanitize_text_field($_POST['query'] ?? '');
     $filter = sanitize_text_field($_POST['filter'] ?? 'all');
@@ -1715,7 +1719,11 @@ add_action('wp_ajax_nopriv_gi_ai_search', 'handle_ai_search');
  * AIチャットハンドラー
  */
 function handle_ai_chat_request() {
-    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    // nonceチェックをエラーハンドリング付きで実行
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'gi_ai_search_nonce')) {
+        wp_send_json_error(['message' => 'セキュリティチェックに失敗しました']);
+        return;
+    }
     
     $message = sanitize_textarea_field($_POST['message'] ?? '');
     $session_id = sanitize_text_field($_POST['session_id'] ?? '');
@@ -1765,7 +1773,11 @@ add_action('wp_ajax_nopriv_gi_ai_chat', 'handle_ai_chat_request');
  * 検索候補取得
  */
 function gi_ajax_search_suggestions() {
-    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    // nonceチェックをエラーハンドリング付きで実行
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'gi_ai_search_nonce')) {
+        wp_send_json_error(['message' => 'セキュリティチェックに失敗しました']);
+        return;
+    }
     
     $query = sanitize_text_field($_POST['query'] ?? '');
     
@@ -1800,7 +1812,11 @@ add_action('wp_ajax_nopriv_gi_search_suggestions', 'gi_ajax_search_suggestions')
  * 音声入力処理
  */
 function gi_ajax_process_voice_input() {
-    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    // nonceチェックをエラーハンドリング付きで実行
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'gi_ai_search_nonce')) {
+        wp_send_json_error(['message' => 'セキュリティチェックに失敗しました']);
+        return;
+    }
     
     $audio_data = $_POST['audio_data'] ?? '';
     
@@ -2094,6 +2110,39 @@ function gi_transcribe_audio($audio_data) {
     // 実装時は音声認識APIを使用
     // 現在はダミーデータを返す
     return '補助金を探しています';
+}
+
+/**
+ * セーフなメタデータ取得ヘルパー
+ */
+if (!function_exists('gi_safe_get_meta')) {
+    function gi_safe_get_meta($post_id, $key, $default = '') {
+        $value = get_post_meta($post_id, $key, true);
+        return $value ?: $default;
+    }
+}
+
+/**
+ * セーフなエスケープヘルパー
+ */
+if (!function_exists('gi_safe_escape')) {
+    function gi_safe_escape($text) {
+        return esc_html($text);
+    }
+}
+
+/**
+ * ステータスマッピングヘルパー
+ */
+if (!function_exists('gi_map_application_status_ui')) {
+    function gi_map_application_status_ui($status) {
+        $status_map = [
+            'open' => 'active',
+            'closed' => 'closed',
+            'upcoming' => 'upcoming'
+        ];
+        return $status_map[$status] ?? $status;
+    }
 }
 
 /**
