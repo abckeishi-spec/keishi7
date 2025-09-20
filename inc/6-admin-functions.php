@@ -268,19 +268,188 @@ function gi_ai_statistics_page() {
         return;
     }
     
-    // 総検索数
+    // 統計データの取得
     $total_searches = $wpdb->get_var("SELECT COUNT(*) FROM $search_table") ?: 0;
+    
+    // チャット履歴テーブル
+    $chat_table = $wpdb->prefix . 'gi_chat_history';
+    $chat_exists = $wpdb->get_var("SHOW TABLES LIKE '$chat_table'") === $chat_table;
+    $total_chats = $chat_exists ? $wpdb->get_var("SELECT COUNT(*) FROM $chat_table WHERE message_type = 'user'") : 0;
+    
+    // 人気の検索キーワード（直近30日）
+    $popular_searches = $wpdb->get_results("
+        SELECT search_query, COUNT(*) as count 
+        FROM $search_table 
+        WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY search_query 
+        ORDER BY count DESC 
+        LIMIT 10
+    ");
+    
+    // 時間帯別利用状況（直近7日）
+    $hourly_stats = $wpdb->get_results("
+        SELECT HOUR(created_at) as hour, COUNT(*) as count 
+        FROM $search_table 
+        WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY HOUR(created_at) 
+        ORDER BY hour
+    ");
+    
+    // 日別利用状況（直近30日）
+    $daily_stats = $wpdb->get_results("
+        SELECT DATE(created_at) as date, COUNT(*) as count 
+        FROM $search_table 
+        WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+        GROUP BY DATE(created_at) 
+        ORDER BY date DESC
+    ");
+    
+    // 平均検索結果数
+    $avg_results = $wpdb->get_var("
+        SELECT AVG(results_count) 
+        FROM $search_table 
+        WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    ") ?: 0;
     
     ?>
     <div class="wrap">
         <h1>AI検索統計</h1>
         
-        <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin-top: 20px;">
-            <h3 style="margin-top: 0;">総検索数</h3>
-            <p style="font-size: 32px; font-weight: bold; color: #10b981;">
-                <?php echo number_format($total_searches); ?>
-            </p>
+        <!-- 統計サマリー -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;">
+            <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333; font-size: 14px;">総検索数</h3>
+                <p style="font-size: 32px; font-weight: bold; color: #10b981; margin: 10px 0;">
+                    <?php echo number_format($total_searches); ?>
+                </p>
+                <p style="color: #666; font-size: 12px;">全期間</p>
+            </div>
+            
+            <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333; font-size: 14px;">チャット数</h3>
+                <p style="font-size: 32px; font-weight: bold; color: #3b82f6; margin: 10px 0;">
+                    <?php echo number_format($total_chats); ?>
+                </p>
+                <p style="color: #666; font-size: 12px;">AIとの対話数</p>
+            </div>
+            
+            <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333; font-size: 14px;">平均検索結果</h3>
+                <p style="font-size: 32px; font-weight: bold; color: #f59e0b; margin: 10px 0;">
+                    <?php echo number_format($avg_results, 1); ?>
+                </p>
+                <p style="color: #666; font-size: 12px;">件/検索</p>
+            </div>
+            
+            <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                <h3 style="margin-top: 0; color: #333; font-size: 14px;">本日の検索</h3>
+                <p style="font-size: 32px; font-weight: bold; color: #8b5cf6; margin: 10px 0;">
+                    <?php 
+                    $today_searches = $wpdb->get_var("
+                        SELECT COUNT(*) FROM $search_table 
+                        WHERE DATE(created_at) = CURDATE()
+                    ") ?: 0;
+                    echo number_format($today_searches);
+                    ?>
+                </p>
+                <p style="color: #666; font-size: 12px;"><?php echo date('Y年m月d日'); ?></p>
+            </div>
+        </div>
+        
+        <!-- 人気検索キーワード -->
+        <?php if (!empty($popular_searches)): ?>
+        <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="font-size: 18px; margin-top: 0;">人気の検索キーワード（過去30日）</h2>
+            <table class="wp-list-table widefat fixed striped" style="margin-top: 15px;">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">順位</th>
+                        <th>検索キーワード</th>
+                        <th style="width: 100px;">検索回数</th>
+                        <th style="width: 120px;">割合</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php 
+                    $total_month = array_sum(array_column($popular_searches, 'count'));
+                    foreach ($popular_searches as $index => $search): 
+                        $percentage = ($search->count / $total_month) * 100;
+                    ?>
+                    <tr>
+                        <td><strong><?php echo $index + 1; ?></strong></td>
+                        <td>
+                            <?php echo esc_html($search->search_query); ?>
+                            <?php if ($index < 3): ?>
+                                <span style="color: #f59e0b;">🔥</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo number_format($search->count); ?>回</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                <div style="background: #e5e5e5; height: 20px; flex: 1; border-radius: 3px; overflow: hidden;">
+                                    <div style="background: #10b981; height: 100%; width: <?php echo $percentage; ?>%;"></div>
+                                </div>
+                                <span style="font-size: 12px;"><?php echo number_format($percentage, 1); ?>%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+        
+        <!-- 時間帯別利用状況 -->
+        <?php if (!empty($hourly_stats)): ?>
+        <div style="background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px;">
+            <h2 style="font-size: 18px; margin-top: 0;">時間帯別利用状況（過去7日間）</h2>
+            <div style="display: flex; align-items: flex-end; height: 200px; gap: 2px; margin-top: 20px;">
+                <?php 
+                $max_hour = max(array_column($hourly_stats, 'count'));
+                for ($h = 0; $h < 24; $h++):
+                    $count = 0;
+                    foreach ($hourly_stats as $stat) {
+                        if ($stat->hour == $h) {
+                            $count = $stat->count;
+                            break;
+                        }
+                    }
+                    $height = $max_hour > 0 ? ($count / $max_hour) * 100 : 0;
+                ?>
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                    <div style="background: <?php echo $height > 0 ? '#3b82f6' : '#e5e5e5'; ?>; 
+                                width: 100%; 
+                                height: <?php echo max($height, 2); ?>%; 
+                                border-radius: 2px 2px 0 0;"
+                         title="<?php echo $h; ?>時: <?php echo $count; ?>件"></div>
+                    <?php if ($h % 3 == 0): ?>
+                    <span style="font-size: 10px; margin-top: 5px;"><?php echo $h; ?>時</span>
+                    <?php endif; ?>
+                </div>
+                <?php endfor; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <!-- アクション -->
+        <div style="margin-top: 30px;">
+            <a href="<?php echo admin_url('admin.php?page=gi-ai-settings'); ?>" class="button button-primary">
+                AI設定を確認
+            </a>
+            <button type="button" class="button" onclick="if(confirm('統計データをリセットしますか？')) location.href='?page=gi-ai-statistics&action=reset&nonce=<?php echo wp_create_nonce('reset_stats'); ?>'">
+                統計をリセット
+            </button>
         </div>
     </div>
     <?php
+    
+    // リセット処理
+    if (isset($_GET['action']) && $_GET['action'] === 'reset' && wp_verify_nonce($_GET['nonce'], 'reset_stats')) {
+        $wpdb->query("TRUNCATE TABLE $search_table");
+        if ($chat_exists) {
+            $wpdb->query("TRUNCATE TABLE $chat_table");
+        }
+        echo '<div class="notice notice-success"><p>統計データをリセットしました。</p></div>';
+        echo '<script>setTimeout(function(){ location.href="?page=gi-ai-statistics"; }, 2000);</script>';
+    }
 }

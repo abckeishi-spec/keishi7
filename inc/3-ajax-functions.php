@@ -1640,26 +1640,63 @@ function handle_ai_search() {
     // セマンティック検索用のキーワード抽出
     $keywords = gi_extract_keywords($query);
     
-    // 検索条件構築
+    // 高度な検索アルゴリズム実装
+    $search_params = gi_parse_search_query($query);
+    
+    // 基本検索条件
     $args = [
         'post_type' => 'grant',
-        'posts_per_page' => 12,
-        'post_status' => 'publish',
-        'orderby' => 'relevance',
-        'order' => 'DESC'
+        'posts_per_page' => 30, // 多めに取得してスコアリング後に絞る
+        'post_status' => 'publish'
     ];
     
-    // キーワード検索
+    // 複合検索クエリの構築
     if (!empty($query)) {
+        // タイトル、内容、抜粋での検索
         $args['s'] = $query;
         
-        // メタフィールド検索も含める
-        $args['meta_query'] = [
-            'relation' => 'OR',
-            ['key' => 'grant_description', 'value' => $query, 'compare' => 'LIKE'],
-            ['key' => 'target_business', 'value' => $query, 'compare' => 'LIKE'],
-            ['key' => 'eligibility_requirements', 'value' => $query, 'compare' => 'LIKE']
+        // メタクエリの構築（より詳細に）
+        $meta_queries = ['relation' => 'OR'];
+        
+        // 主要メタフィールドでの検索
+        $search_fields = [
+            'grant_description',
+            'target_business',
+            'eligibility_requirements',
+            'application_process',
+            'grant_purpose',
+            'grant_benefits',
+            'organization',
+            'managing_organization',
+            'support_details'
         ];
+        
+        foreach ($search_fields as $field) {
+            $meta_queries[] = [
+                'key' => $field,
+                'value' => $query,
+                'compare' => 'LIKE'
+            ];
+        }
+        
+        // 金額での検索（数値が含まれる場合）
+        if (preg_match('/(\d+)/', $query, $matches)) {
+            $amount = intval($matches[1]);
+            $meta_queries[] = [
+                'key' => 'max_amount',
+                'value' => $amount,
+                'compare' => '>=',
+                'type' => 'NUMERIC'
+            ];
+            $meta_queries[] = [
+                'key' => 'grant_amount',
+                'value' => $amount,
+                'compare' => '>=',
+                'type' => 'NUMERIC'
+            ];
+        }
+        
+        $args['meta_query'] = $meta_queries;
     }
     
     // フィルター適用
@@ -1690,8 +1727,8 @@ function handle_ai_search() {
             $query_obj->the_post();
             $post_id = get_the_ID();
             
-            // スコアリング計算
-            $relevance_score = gi_calculate_relevance_score($post_id, $keywords);
+            // スコアリング計算（クエリも渡す）
+            $relevance_score = gi_calculate_relevance_score($post_id, $keywords, $query);
             
             $grants[] = [
                 'id' => $post_id,
@@ -1715,18 +1752,19 @@ function handle_ai_search() {
         });
     }
     
-    // AI応答生成（シミュレーション - 実際の実装では外部APIを使用）
+    // AI応答生成
     $ai_response = gi_generate_ai_search_response($query, $grants);
     
-    // セッションへの保存
-    if ($session_id) {
-        gi_save_search_session($session_id, $query, $grants);
+    // セッションIDの確保
+    if (!$session_id) {
+        $session_id = wp_generate_uuid4();
     }
     
-    // データベースへの保存
-    if (function_exists('gi_save_search_history')) {
-        gi_save_search_history($session_id ?: wp_generate_uuid4(), $query, $filter, count($grants));
-    }
+    // セッションへの保存
+    gi_save_search_session($session_id, $query, $grants);
+    
+    // データベースへの実際の保存
+    gi_log_search_to_database($session_id, $query, $filter, $grants, $keywords);
     
     wp_send_json_success([
         'grants' => $grants,
@@ -1786,11 +1824,9 @@ function handle_ai_chat_request() {
     $conversation_context[] = ['assistant' => $ai_response, 'timestamp' => current_time('timestamp')];
     gi_save_conversation_context($session_id, $conversation_context);
     
-    // データベースへの保存
-    if (function_exists('gi_save_chat_history')) {
-        gi_save_chat_history($session_id, 'user', $message, $intent['type'], $intent['confidence']);
-        gi_save_chat_history($session_id, 'assistant', $ai_response, null, null, $related_grants);
-    }
+    // データベースへの保存（実装版）
+    gi_log_chat_to_database($session_id, 'user', $message, $intent);
+    gi_log_chat_to_database($session_id, 'assistant', $ai_response, null, $related_grants);
     
     wp_send_json_success([
         'response' => $ai_response,
@@ -1879,7 +1915,154 @@ add_action('wp_ajax_nopriv_gi_voice_input', 'gi_ajax_process_voice_input');
  */
 
 /**
- * キーワード抽出
+ * 検索クエリの高度な解析
+ */
+function gi_parse_search_query($query) {
+    $params = [
+        'keywords' => [],
+        'amount_min' => null,
+        'amount_max' => null,
+        'location' => null,
+        'industry' => null,
+        'purpose' => null,
+        'deadline_within_days' => null
+    ];
+    
+    // 金額の抽出（例: "500万円", "100万〜1000万"）
+    if (preg_match('/(\d+)万円?(?:〜|～|-|から)(\d+)万円?/', $query, $matches)) {
+        $params['amount_min'] = intval($matches[1]);
+        $params['amount_max'] = intval($matches[2]);
+    } elseif (preg_match('/(\d+)万円?(?:以上|から)/', $query, $matches)) {
+        $params['amount_min'] = intval($matches[1]);
+    } elseif (preg_match('/(\d+)万円?(?:以下|まで)/', $query, $matches)) {
+        $params['amount_max'] = intval($matches[1]);
+    } elseif (preg_match('/(\d+)万円?/', $query, $matches)) {
+        $params['amount_min'] = intval($matches[1]) * 0.5;
+        $params['amount_max'] = intval($matches[1]) * 2;
+    }
+    
+    // 地域の抽出
+    $prefectures = ['東京', '大阪', '愛知', '福岡', '北海道', '神奈川', '埼玉', '千葉'];
+    foreach ($prefectures as $pref) {
+        if (mb_strpos($query, $pref) !== false) {
+            $params['location'] = $pref;
+            break;
+        }
+    }
+    
+    // 業種の判定
+    $industries = [
+        'IT' => ['IT', 'デジタル', 'DX', 'システム', 'ソフトウェア', 'Web'],
+        '製造' => ['製造', 'ものづくり', '工場', '機械', '設備'],
+        '飲食' => ['飲食', 'レストラン', 'カフェ', '居酒屋', '食品'],
+        '小売' => ['小売', '販売', 'ショップ', '店舗', 'EC'],
+        'サービス' => ['サービス', 'コンサル', '人材', '教育']
+    ];
+    
+    foreach ($industries as $industry => $keywords) {
+        foreach ($keywords as $keyword) {
+            if (mb_stripos($query, $keyword) !== false) {
+                $params['industry'] = $industry;
+                break 2;
+            }
+        }
+    }
+    
+    // 目的の判定
+    $purposes = [
+        '設備投資' => ['設備', '機械', '装置', 'システム導入'],
+        '人材育成' => ['人材', '研修', '教育', 'スキル'],
+        '販路開拓' => ['販路', '営業', 'マーケティング', '広告'],
+        '研究開発' => ['研究', '開発', 'R&D', '新製品'],
+        '事業承継' => ['承継', '後継', 'M&A']
+    ];
+    
+    foreach ($purposes as $purpose => $keywords) {
+        foreach ($keywords as $keyword) {
+            if (mb_stripos($query, $keyword) !== false) {
+                $params['purpose'] = $purpose;
+                break 2;
+            }
+        }
+    }
+    
+    // 期限の判定
+    if (mb_strpos($query, '締切間近') !== false || mb_strpos($query, '急ぎ') !== false) {
+        $params['deadline_within_days'] = 30;
+    } elseif (mb_strpos($query, '今月') !== false) {
+        $params['deadline_within_days'] = 30;
+    } elseif (mb_strpos($query, '今年') !== false) {
+        $params['deadline_within_days'] = 365;
+    }
+    
+    // 残りの単語をキーワードとして抽出
+    $params['keywords'] = gi_extract_keywords($query);
+    
+    return $params;
+}
+
+/**
+ * データベースへのログ記録（実装版）
+ */
+function gi_log_search_to_database($session_id, $query, $filter, $grants, $keywords) {
+    global $wpdb;
+    
+    $table = $wpdb->prefix . 'gi_search_history';
+    
+    // テーブルが存在するか確認、なければ作成
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") === $table;
+    
+    if (!$table_exists) {
+        gi_create_search_tables();
+    }
+    
+    // 検索履歴を保存
+    $wpdb->insert(
+        $table,
+        [
+            'session_id' => $session_id,
+            'user_id' => get_current_user_id() ?: null,
+            'search_query' => $query,
+            'search_filter' => $filter,
+            'results_count' => count($grants),
+            'clicked_results' => null, // 後でクリック時に更新
+            'created_at' => current_time('mysql')
+        ],
+        ['%s', '%d', '%s', '%s', '%d', '%s', '%s']
+    );
+    
+    return $wpdb->insert_id;
+}
+
+/**
+ * 検索テーブルの作成
+ */
+function gi_create_search_tables() {
+    global $wpdb;
+    
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}gi_search_history (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        session_id varchar(255) NOT NULL,
+        user_id bigint(20) unsigned DEFAULT NULL,
+        search_query text NOT NULL,
+        search_filter varchar(50) DEFAULT NULL,
+        results_count int(11) DEFAULT 0,
+        clicked_results text DEFAULT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id),
+        KEY user_id (user_id),
+        KEY created_at (created_at)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+
+/**
+ * キーワード抽出（改良版）
  */
 function gi_extract_keywords($query) {
     // 重要キーワードのマッピング
@@ -1905,33 +2088,153 @@ function gi_extract_keywords($query) {
 }
 
 /**
- * 関連性スコア計算
+ * 高度な関連性スコア計算アルゴリズム
  */
-function gi_calculate_relevance_score($post_id, $keywords) {
+function gi_calculate_relevance_score($post_id, $keywords, $original_query = '') {
     $score = 0;
+    $debug_info = [];
+    
+    // 基本情報取得
     $title = get_the_title($post_id);
     $content = get_post_field('post_content', $post_id);
+    $excerpt = get_the_excerpt($post_id);
     
+    // 1. タイトルマッチング（最重要）
+    $title_lower = mb_strtolower($title);
+    $query_lower = mb_strtolower($original_query);
+    
+    // 完全一致
+    if ($title_lower === $query_lower) {
+        $score += 50;
+        $debug_info[] = "完全一致:+50";
+    }
+    // 部分一致
+    elseif (mb_strpos($title_lower, $query_lower) !== false) {
+        $score += 30;
+        $debug_info[] = "タイトル部分一致:+30";
+    }
+    
+    // キーワードごとのマッチング
     foreach ($keywords as $keyword) {
-        // タイトルマッチは高スコア
+        $keyword_lower = mb_strtolower($keyword);
+        
+        // タイトルでのキーワードマッチ
         if (mb_stripos($title, $keyword) !== false) {
-            $score += 10;
+            $score += 15;
+            $debug_info[] = "タイトルキーワード[{$keyword}]:+15";
         }
-        // コンテンツマッチ
+        
+        // 抜粋でのマッチ
+        if (mb_stripos($excerpt, $keyword) !== false) {
+            $score += 8;
+            $debug_info[] = "抜粋キーワード[{$keyword}]:+8";
+        }
+        
+        // コンテンツでのマッチ
         if (mb_stripos($content, $keyword) !== false) {
             $score += 5;
+            $debug_info[] = "本文キーワード[{$keyword}]:+5";
         }
     }
     
-    // 注目フラグ
-    if (get_post_meta($post_id, 'is_featured', true)) {
-        $score += 3;
+    // 2. メタデータスコアリング
+    $meta_fields = [
+        'grant_description' => 12,
+        'target_business' => 10,
+        'grant_purpose' => 8,
+        'eligibility_requirements' => 7,
+        'application_process' => 5
+    ];
+    
+    foreach ($meta_fields as $field => $weight) {
+        $meta_value = get_post_meta($post_id, $field, true);
+        if ($meta_value) {
+            foreach ($keywords as $keyword) {
+                if (mb_stripos($meta_value, $keyword) !== false) {
+                    $score += $weight;
+                    $debug_info[] = "メタ[{$field}]に[{$keyword}]:+{$weight}";
+                    break; // 同じフィールドで複数マッチしても1回だけカウント
+                }
+            }
+        }
     }
     
-    // 成功率が高い
-    $success_rate = get_post_meta($post_id, 'grant_success_rate', true);
-    if ($success_rate > 70) {
-        $score += 2;
+    // 3. 品質スコア
+    // 注目フラグ
+    if (get_post_meta($post_id, 'is_featured', true)) {
+        $score += 10;
+        $debug_info[] = "注目補助金:+10";
+    }
+    
+    // 成功率
+    $success_rate = get_post_meta($post_id, 'grant_success_rate', true) ?: 
+                   get_post_meta($post_id, 'success_rate', true);
+    if ($success_rate) {
+        if ($success_rate >= 80) {
+            $score += 15;
+            $debug_info[] = "高採択率({$success_rate}%):+15";
+        } elseif ($success_rate >= 60) {
+            $score += 8;
+            $debug_info[] = "中採択率({$success_rate}%):+8";
+        }
+    }
+    
+    // 4. 締切スコア（締切が近いものを優先）
+    $deadline = get_post_meta($post_id, 'deadline', true) ?: 
+               get_post_meta($post_id, 'application_deadline', true);
+    if ($deadline) {
+        $deadline_time = strtotime($deadline);
+        if ($deadline_time) {
+            $days_until = ($deadline_time - time()) / 86400;
+            if ($days_until > 0 && $days_until <= 30) {
+                $score += 5;
+                $debug_info[] = "締切間近:+5";
+            } elseif ($days_until > 30 && $days_until <= 90) {
+                $score += 3;
+                $debug_info[] = "締切あり:+3";
+            }
+        }
+    }
+    
+    // 5. 補助金額の妥当性
+    $amount = get_post_meta($post_id, 'max_amount', true) ?: 
+             get_post_meta($post_id, 'grant_amount', true);
+    if ($amount) {
+        // クエリに金額が含まれている場合
+        if (preg_match('/(\d+)[万円]?/', $original_query, $matches)) {
+            $requested_amount = intval($matches[1]);
+            $grant_amount = intval(preg_replace('/[^0-9]/', '', $amount));
+            
+            // 要求額に近いほど高スコア
+            if ($grant_amount >= $requested_amount * 0.8 && $grant_amount <= $requested_amount * 1.5) {
+                $score += 10;
+                $debug_info[] = "金額マッチ:+10";
+            }
+        }
+    }
+    
+    // 6. カテゴリマッチング
+    $categories = wp_get_post_terms($post_id, 'grant_category', ['fields' => 'names']);
+    if ($categories) {
+        foreach ($categories as $cat) {
+            foreach ($keywords as $keyword) {
+                if (mb_stripos($cat, $keyword) !== false) {
+                    $score += 7;
+                    $debug_info[] = "カテゴリマッチ[{$cat}]:+7";
+                    break;
+                }
+            }
+        }
+    }
+    
+    // デバッグ情報を保存（開発時のみ）
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        update_post_meta($post_id, '_relevance_debug', [
+            'score' => $score,
+            'details' => $debug_info,
+            'query' => $original_query,
+            'keywords' => $keywords
+        ]);
     }
     
     return $score;
@@ -2459,7 +2762,68 @@ function gi_generate_follow_up_questions($intent, $message) {
 }
 
 /**
- * 会話コンテキスト管理
+ * チャット履歴のデータベース記録
+ */
+function gi_log_chat_to_database($session_id, $message_type, $message, $intent = null, $related_grants = null) {
+    global $wpdb;
+    
+    $table = $wpdb->prefix . 'gi_chat_history';
+    
+    // テーブルが存在するか確認
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") === $table;
+    
+    if (!$table_exists) {
+        gi_create_chat_tables();
+    }
+    
+    $wpdb->insert(
+        $table,
+        [
+            'session_id' => $session_id,
+            'user_id' => get_current_user_id() ?: null,
+            'message_type' => $message_type,
+            'message' => $message,
+            'intent' => $intent ? $intent['type'] : null,
+            'confidence' => $intent ? $intent['confidence'] : null,
+            'related_grants' => is_array($related_grants) ? json_encode($related_grants) : $related_grants,
+            'created_at' => current_time('mysql')
+        ],
+        ['%s', '%d', '%s', '%s', '%s', '%f', '%s', '%s']
+    );
+    
+    return $wpdb->insert_id;
+}
+
+/**
+ * チャットテーブルの作成
+ */
+function gi_create_chat_tables() {
+    global $wpdb;
+    
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}gi_chat_history (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        session_id varchar(255) NOT NULL,
+        user_id bigint(20) unsigned DEFAULT NULL,
+        message_type enum('user','assistant') NOT NULL DEFAULT 'user',
+        message text NOT NULL,
+        intent varchar(100) DEFAULT NULL,
+        confidence decimal(3,2) DEFAULT NULL,
+        related_grants text DEFAULT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id),
+        KEY user_id (user_id),
+        KEY created_at (created_at)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+
+/**
+ * 会話コンテキスト管理（データベースから取得）
  */
 function gi_get_conversation_context($session_id) {
     if (!$session_id) return [];
