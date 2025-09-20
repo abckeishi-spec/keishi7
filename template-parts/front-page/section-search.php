@@ -917,6 +917,128 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     letter-spacing: 0.05em;
 }
 
+/* Notification System */
+.ai-notification {
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    background: #333;
+    color: #fff;
+    border-radius: 20px;
+    font-size: 12px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+    white-space: nowrap;
+}
+
+.ai-notification.visible {
+    opacity: 1;
+    top: -50px;
+}
+
+.ai-notification.error {
+    background: #dc3545;
+}
+
+.ai-notification.success {
+    background: #28a745;
+}
+
+.ai-notification.info {
+    background: #17a2b8;
+}
+
+/* Voice Recording Animation */
+.voice-btn.recording {
+    background: #dc3545;
+    color: #fff;
+    animation: recordPulse 1.5s infinite;
+}
+
+@keyframes recordPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* Loading States */
+.search-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.search-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Enhanced Grant Cards */
+.grant-card.loading {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.grant-card .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    display: none;
+}
+
+.grant-card.loading .loading-overlay {
+    display: flex;
+}
+
+/* List View */
+.results-list .grant-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px;
+}
+
+.results-list .card-title {
+    flex: 1;
+}
+
+.results-list .card-meta {
+    display: flex;
+    gap: 20px;
+}
+
+/* No Results */
+.no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.no-results h3 {
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.no-results p {
+    font-size: 14px;
+    color: #999;
+}
+
+/* Error Message */
+.error-message {
+    padding: 20px;
+    background: #fee;
+    color: #c33;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 14px;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .ai-main-content {
@@ -1069,23 +1191,40 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                 return;
             }
 
-            // Get suggestions
+            // Get suggestions from server
             const suggestions = await this.fetchSuggestions(query);
             this.displaySuggestions(suggestions);
         }
 
         async fetchSuggestions(query) {
-            // Simulate API call - replace with actual AJAX
-            const mockSuggestions = [
+            try {
+                const formData = new FormData();
+                formData.append('action', 'gi_search_suggestions');
+                formData.append('nonce', CONFIG.NONCE);
+                formData.append('query', query);
+
+                const response = await fetch(CONFIG.API_URL, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.data.suggestions) {
+                    return data.data.suggestions;
+                }
+            } catch (error) {
+                console.error('Suggestions error:', error);
+            }
+
+            // Fallback suggestions
+            return [
                 { icon: '🏭', text: 'ものづくり補助金', type: 'grant' },
                 { icon: '💻', text: 'IT導入補助金', type: 'grant' },
                 { icon: '🏪', text: '小規模事業者持続化補助金', type: 'grant' },
-                { icon: '🔄', text: '事業再構築補助金', type: 'grant' },
-            ];
-
-            return mockSuggestions.filter(s => 
-                s.text.toLowerCase().includes(query.toLowerCase())
-            );
+                { icon: '🔄', text: '事業再構築補助金', type: 'grant' }
+            ].filter(s => s.text.toLowerCase().includes(query.toLowerCase()));
         }
 
         displaySuggestions(suggestions) {
@@ -1365,34 +1504,115 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 
         // Voice Input
         startVoiceInput() {
-            if (!('webkitSpeechRecognition' in window)) {
-                alert('音声入力はこのブラウザではサポートされていません');
+            // Check for speech recognition support
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                this.showNotification('音声入力はこのブラウザではサポートされていません', 'error');
                 return;
             }
 
-            const recognition = new webkitSpeechRecognition();
+            const recognition = new SpeechRecognition();
             recognition.lang = 'ja-JP';
-            recognition.interimResults = false;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+            recognition.continuous = false;
+
+            // Visual feedback
+            this.elements.voiceBtn?.classList.add('recording');
+            this.showNotification('音声入力中...話してください', 'info');
 
             recognition.onstart = () => {
-                this.elements.voiceBtn?.classList.add('recording');
+                console.log('Voice recognition started');
             };
 
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
+            recognition.onresult = async (event) => {
+                const transcript = Array.from(event.results)
+                    .map(result => result[0])
+                    .map(result => result.transcript)
+                    .join('');
+                
                 this.elements.searchInput.value = transcript;
-                this.performSearch();
+                
+                // If final result, perform search
+                if (event.results[event.results.length - 1].isFinal) {
+                    this.hideNotification();
+                    this.performSearch();
+                    
+                    // Save voice input history
+                    if (transcript) {
+                        this.saveVoiceHistory(transcript, event.results[0][0].confidence);
+                    }
+                }
             };
 
-            recognition.onerror = () => {
-                alert('音声認識エラーが発生しました');
+            recognition.onerror = (event) => {
+                console.error('Voice recognition error:', event.error);
+                let errorMessage = '音声認識エラーが発生しました';
+                
+                switch(event.error) {
+                    case 'no-speech':
+                        errorMessage = '音声が検出されませんでした';
+                        break;
+                    case 'audio-capture':
+                        errorMessage = 'マイクが使用できません';
+                        break;
+                    case 'not-allowed':
+                        errorMessage = 'マイクのアクセスが拒否されました';
+                        break;
+                }
+                
+                this.showNotification(errorMessage, 'error');
             };
 
             recognition.onend = () => {
                 this.elements.voiceBtn?.classList.remove('recording');
+                this.hideNotification();
             };
 
             recognition.start();
+        }
+
+        // Save voice input history
+        async saveVoiceHistory(text, confidence) {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'gi_voice_history');
+                formData.append('nonce', CONFIG.NONCE);
+                formData.append('session_id', CONFIG.SESSION_ID);
+                formData.append('text', text);
+                formData.append('confidence', confidence);
+
+                await fetch(CONFIG.API_URL, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+            } catch (error) {
+                console.error('Voice history save error:', error);
+            }
+        }
+
+        // Notification system
+        showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `ai-notification ${type}`;
+            notification.textContent = message;
+            
+            const container = document.querySelector('.ai-search-bar');
+            container?.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('visible');
+            }, 10);
+        }
+
+        hideNotification() {
+            const notification = document.querySelector('.ai-notification');
+            if (notification) {
+                notification.classList.remove('visible');
+                setTimeout(() => notification.remove(), 300);
+            }
         }
 
         // Loading States
@@ -1493,73 +1713,3 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 })();
 </script>
 
-<?php
-// AJAX Handler (functions.phpに追加が必要)
-add_action('wp_ajax_gi_ai_search', 'handle_ai_search');
-add_action('wp_ajax_nopriv_gi_ai_search', 'handle_ai_search');
-add_action('wp_ajax_gi_ai_chat', 'handle_ai_chat_request');
-add_action('wp_ajax_nopriv_gi_ai_chat', 'handle_ai_chat_request');
-
-function handle_ai_search() {
-    check_ajax_referer('gi_ai_search_nonce', 'nonce');
-    
-    $query = sanitize_text_field($_POST['query'] ?? '');
-    $filter = sanitize_text_field($_POST['filter'] ?? 'all');
-    
-    // 検索処理
-    $args = [
-        'post_type' => 'grant',
-        's' => $query,
-        'posts_per_page' => 12,
-        'post_status' => 'publish'
-    ];
-    
-    if ($filter !== 'all') {
-        $args['tax_query'] = [[
-            'taxonomy' => 'grant_category',
-            'field' => 'slug',
-            'terms' => $filter
-        ]];
-    }
-    
-    $query = new WP_Query($args);
-    $grants = [];
-    
-    if ($query->have_posts()) {
-        while ($query->have_posts()) {
-            $query->the_post();
-            $grants[] = [
-                'id' => get_the_ID(),
-                'title' => get_the_title(),
-                'permalink' => get_permalink(),
-                'amount' => get_post_meta(get_the_ID(), 'max_amount', true),
-                'deadline' => get_post_meta(get_the_ID(), 'deadline', true),
-                'organization' => get_post_meta(get_the_ID(), 'organization', true),
-                'success_rate' => get_post_meta(get_the_ID(), 'grant_success_rate', true),
-                'featured' => get_post_meta(get_the_ID(), 'is_featured', true)
-            ];
-        }
-        wp_reset_postdata();
-    }
-    
-    wp_send_json_success([
-        'grants' => $grants,
-        'count' => $query->found_posts,
-        'ai_response' => $query->found_posts . '件の補助金が見つかりました。'
-    ]);
-}
-
-function handle_ai_chat_request() {
-    check_ajax_referer('gi_ai_search_nonce', 'nonce');
-    
-    $message = sanitize_text_field($_POST['message'] ?? '');
-    
-    // AI処理のシミュレーション
-    $response = "ご質問ありがとうございます。「{$message}」について、最適な補助金をお探しします。";
-    
-    wp_send_json_success([
-        'response' => $response,
-        'related_grants' => []
-    ]);
-}
-?>

@@ -1594,6 +1594,509 @@ function gi_ajax_debug_info() {
 add_action('wp_ajax_gi_debug_info', 'gi_ajax_debug_info');
 
 /**
+ * =============================================================================
+ * 10. AI検索機能 - 完全実装版
+ * =============================================================================
+ */
+
+/**
+ * AI検索ハンドラー
+ */
+function handle_ai_search() {
+    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    
+    $query = sanitize_text_field($_POST['query'] ?? '');
+    $filter = sanitize_text_field($_POST['filter'] ?? 'all');
+    $session_id = sanitize_text_field($_POST['session_id'] ?? '');
+    
+    // セマンティック検索用のキーワード抽出
+    $keywords = gi_extract_keywords($query);
+    
+    // 検索条件構築
+    $args = [
+        'post_type' => 'grant',
+        'posts_per_page' => 12,
+        'post_status' => 'publish',
+        'orderby' => 'relevance',
+        'order' => 'DESC'
+    ];
+    
+    // キーワード検索
+    if (!empty($query)) {
+        $args['s'] = $query;
+        
+        // メタフィールド検索も含める
+        $args['meta_query'] = [
+            'relation' => 'OR',
+            ['key' => 'grant_description', 'value' => $query, 'compare' => 'LIKE'],
+            ['key' => 'target_business', 'value' => $query, 'compare' => 'LIKE'],
+            ['key' => 'eligibility_requirements', 'value' => $query, 'compare' => 'LIKE']
+        ];
+    }
+    
+    // フィルター適用
+    if ($filter !== 'all') {
+        $filter_mapping = [
+            'it' => 'it-support',
+            'manufacturing' => 'monozukuri',
+            'startup' => 'startup-support',
+            'sustainability' => 'sustainability',
+            'innovation' => 'innovation',
+            'employment' => 'employment'
+        ];
+        
+        if (isset($filter_mapping[$filter])) {
+            $args['tax_query'] = [[
+                'taxonomy' => 'grant_category',
+                'field' => 'slug',
+                'terms' => $filter_mapping[$filter]
+            ]];
+        }
+    }
+    
+    $query_obj = new WP_Query($args);
+    $grants = [];
+    
+    if ($query_obj->have_posts()) {
+        while ($query_obj->have_posts()) {
+            $query_obj->the_post();
+            $post_id = get_the_ID();
+            
+            // スコアリング計算
+            $relevance_score = gi_calculate_relevance_score($post_id, $keywords);
+            
+            $grants[] = [
+                'id' => $post_id,
+                'title' => get_the_title(),
+                'permalink' => get_permalink(),
+                'excerpt' => wp_trim_words(get_the_excerpt(), 20),
+                'amount' => get_post_meta($post_id, 'max_amount', true) ?: get_post_meta($post_id, 'grant_amount', true),
+                'deadline' => get_post_meta($post_id, 'deadline', true) ?: get_post_meta($post_id, 'application_deadline', true),
+                'organization' => get_post_meta($post_id, 'organization', true) ?: get_post_meta($post_id, 'managing_organization', true),
+                'success_rate' => get_post_meta($post_id, 'grant_success_rate', true) ?: get_post_meta($post_id, 'success_rate', true),
+                'featured' => get_post_meta($post_id, 'is_featured', true),
+                'relevance_score' => $relevance_score,
+                'categories' => wp_get_post_terms($post_id, 'grant_category', ['fields' => 'names'])
+            ];
+        }
+        wp_reset_postdata();
+        
+        // 関連性でソート
+        usort($grants, function($a, $b) {
+            return $b['relevance_score'] - $a['relevance_score'];
+        });
+    }
+    
+    // AI応答生成（シミュレーション - 実際の実装では外部APIを使用）
+    $ai_response = gi_generate_ai_search_response($query, $grants);
+    
+    // セッションへの保存
+    if ($session_id) {
+        gi_save_search_session($session_id, $query, $grants);
+    }
+    
+    // データベースへの保存
+    if (function_exists('gi_save_search_history')) {
+        gi_save_search_history($session_id ?: wp_generate_uuid4(), $query, $filter, count($grants));
+    }
+    
+    wp_send_json_success([
+        'grants' => $grants,
+        'count' => $query_obj->found_posts,
+        'ai_response' => $ai_response,
+        'keywords' => $keywords,
+        'session_id' => $session_id ?: wp_generate_uuid4()
+    ]);
+}
+add_action('wp_ajax_gi_ai_search', 'handle_ai_search');
+add_action('wp_ajax_nopriv_gi_ai_search', 'handle_ai_search');
+
+/**
+ * AIチャットハンドラー
+ */
+function handle_ai_chat_request() {
+    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    
+    $message = sanitize_textarea_field($_POST['message'] ?? '');
+    $session_id = sanitize_text_field($_POST['session_id'] ?? '');
+    $context = json_decode(stripslashes($_POST['context'] ?? '[]'), true) ?: [];
+    
+    if (empty($message)) {
+        wp_send_json_error(['message' => 'メッセージが空です']);
+    }
+    
+    // 意図分析
+    $intent = gi_analyze_user_intent($message);
+    
+    // コンテキスト管理
+    $conversation_context = gi_get_conversation_context($session_id);
+    $conversation_context[] = ['user' => $message, 'timestamp' => current_time('timestamp')];
+    
+    // AI応答生成
+    $ai_response = gi_generate_chat_response($message, $intent, $conversation_context);
+    
+    // 関連補助金の検索
+    $related_grants = [];
+    if ($intent['type'] === 'grant_search' || $intent['type'] === 'grant_inquiry') {
+        $related_grants = gi_find_related_grants($message, $intent);
+    }
+    
+    // 会話履歴の保存
+    $conversation_context[] = ['assistant' => $ai_response, 'timestamp' => current_time('timestamp')];
+    gi_save_conversation_context($session_id, $conversation_context);
+    
+    // データベースへの保存
+    if (function_exists('gi_save_chat_history')) {
+        gi_save_chat_history($session_id, 'user', $message, $intent['type'], $intent['confidence']);
+        gi_save_chat_history($session_id, 'assistant', $ai_response, null, null, $related_grants);
+    }
+    
+    wp_send_json_success([
+        'response' => $ai_response,
+        'intent' => $intent,
+        'related_grants' => $related_grants,
+        'suggestions' => gi_generate_follow_up_questions($intent, $message)
+    ]);
+}
+add_action('wp_ajax_gi_ai_chat', 'handle_ai_chat_request');
+add_action('wp_ajax_nopriv_gi_ai_chat', 'handle_ai_chat_request');
+
+/**
+ * 検索候補取得
+ */
+function gi_ajax_search_suggestions() {
+    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    
+    $query = sanitize_text_field($_POST['query'] ?? '');
+    
+    if (strlen($query) < 2) {
+        wp_send_json_success(['suggestions' => []]);
+    }
+    
+    // 人気の検索キーワード
+    $popular_searches = gi_get_popular_searches();
+    
+    // 補助金タイトルから候補を生成
+    $grant_suggestions = gi_get_grant_title_suggestions($query);
+    
+    // カテゴリーから候補を生成
+    $category_suggestions = gi_get_category_suggestions($query);
+    
+    $suggestions = array_merge(
+        array_map(function($s) { return ['type' => 'popular', 'text' => $s, 'icon' => '🔥']; }, $popular_searches),
+        array_map(function($s) { return ['type' => 'grant', 'text' => $s, 'icon' => '📋']; }, $grant_suggestions),
+        array_map(function($s) { return ['type' => 'category', 'text' => $s, 'icon' => '📁']; }, $category_suggestions)
+    );
+    
+    // 重複削除と上限設定
+    $suggestions = array_slice(array_unique($suggestions, SORT_REGULAR), 0, 8);
+    
+    wp_send_json_success(['suggestions' => $suggestions]);
+}
+add_action('wp_ajax_gi_search_suggestions', 'gi_ajax_search_suggestions');
+add_action('wp_ajax_nopriv_gi_search_suggestions', 'gi_ajax_search_suggestions');
+
+/**
+ * 音声入力処理
+ */
+function gi_ajax_process_voice_input() {
+    check_ajax_referer('gi_ai_search_nonce', 'nonce');
+    
+    $audio_data = $_POST['audio_data'] ?? '';
+    
+    if (empty($audio_data)) {
+        wp_send_json_error(['message' => '音声データがありません']);
+    }
+    
+    // 音声認識処理（実装時は外部APIを使用）
+    $transcribed_text = gi_transcribe_audio($audio_data);
+    
+    if (!$transcribed_text) {
+        wp_send_json_error(['message' => '音声認識に失敗しました']);
+    }
+    
+    wp_send_json_success([
+        'text' => $transcribed_text,
+        'confidence' => 0.95 // 認識信頼度
+    ]);
+}
+add_action('wp_ajax_gi_voice_input', 'gi_ajax_process_voice_input');
+add_action('wp_ajax_nopriv_gi_voice_input', 'gi_ajax_process_voice_input');
+
+/**
+ * =============================================================================
+ * AI検索ヘルパー関数
+ * =============================================================================
+ */
+
+/**
+ * キーワード抽出
+ */
+function gi_extract_keywords($query) {
+    // 重要キーワードのマッピング
+    $keyword_map = [
+        'IT' => ['IT', 'デジタル', 'システム', 'ソフトウェア', 'DX'],
+        'ものづくり' => ['製造', '工場', '設備', '機械', '生産'],
+        '創業' => ['創業', '起業', 'スタートアップ', '開業', '新規事業'],
+        '持続化' => ['持続化', '継続', '事業継続', '小規模'],
+        '再構築' => ['再構築', '転換', '新分野', '業態転換']
+    ];
+    
+    $keywords = [];
+    foreach ($keyword_map as $category => $terms) {
+        foreach ($terms as $term) {
+            if (mb_stripos($query, $term) !== false) {
+                $keywords[] = $category;
+                break;
+            }
+        }
+    }
+    
+    return array_unique($keywords);
+}
+
+/**
+ * 関連性スコア計算
+ */
+function gi_calculate_relevance_score($post_id, $keywords) {
+    $score = 0;
+    $title = get_the_title($post_id);
+    $content = get_post_field('post_content', $post_id);
+    
+    foreach ($keywords as $keyword) {
+        // タイトルマッチは高スコア
+        if (mb_stripos($title, $keyword) !== false) {
+            $score += 10;
+        }
+        // コンテンツマッチ
+        if (mb_stripos($content, $keyword) !== false) {
+            $score += 5;
+        }
+    }
+    
+    // 注目フラグ
+    if (get_post_meta($post_id, 'is_featured', true)) {
+        $score += 3;
+    }
+    
+    // 成功率が高い
+    $success_rate = get_post_meta($post_id, 'grant_success_rate', true);
+    if ($success_rate > 70) {
+        $score += 2;
+    }
+    
+    return $score;
+}
+
+/**
+ * AI検索応答生成
+ */
+function gi_generate_ai_search_response($query, $grants) {
+    $count = count($grants);
+    
+    if ($count === 0) {
+        return "申し訳ございません。「{$query}」に該当する補助金は見つかりませんでした。検索条件を変更してみてください。";
+    }
+    
+    $response = "{$count}件の補助金が見つかりました。";
+    
+    if ($count > 0 && isset($grants[0])) {
+        $top_grant = $grants[0];
+        $response .= "特におすすめは「{$top_grant['title']}」です。";
+        
+        if ($top_grant['amount']) {
+            $response .= "最大{$top_grant['amount']}の支援が受けられます。";
+        }
+    }
+    
+    return $response;
+}
+
+/**
+ * ユーザー意図分析
+ */
+function gi_analyze_user_intent($message) {
+    $intent = ['type' => 'general', 'confidence' => 0.5, 'entities' => []];
+    
+    // 意図パターンのマッチング
+    $patterns = [
+        'grant_search' => ['補助金', '助成金', '支援金', '探して', '教えて'],
+        'application_help' => ['申請', '応募', '手続き', '書類', 'やり方'],
+        'deadline_check' => ['締切', '期限', 'いつまで', '期間'],
+        'amount_inquiry' => ['金額', 'いくら', '最大', '上限'],
+        'eligibility' => ['対象', '条件', '資格', '該当']
+    ];
+    
+    foreach ($patterns as $type => $keywords) {
+        foreach ($keywords as $keyword) {
+            if (mb_stripos($message, $keyword) !== false) {
+                $intent['type'] = $type;
+                $intent['confidence'] = 0.8;
+                $intent['entities'][] = $keyword;
+            }
+        }
+    }
+    
+    return $intent;
+}
+
+/**
+ * チャット応答生成
+ */
+function gi_generate_chat_response($message, $intent, $context) {
+    $responses = [
+        'grant_search' => 'お探しの補助金について詳しくお聞かせください。業種や目的を教えていただければ、最適な補助金をご提案いたします。',
+        'application_help' => '申請手続きについてサポートいたします。どちらの補助金の申請をご検討でしょうか？',
+        'deadline_check' => '締切を確認いたします。どちらの補助金についてお調べしましょうか？',
+        'amount_inquiry' => '補助金額について確認いたします。具体的な事業内容を教えていただけますか？',
+        'eligibility' => '対象条件を確認いたします。御社の業種と従業員数を教えていただけますか？',
+        'general' => 'ご質問ありがとうございます。どのような補助金情報をお探しでしょうか？'
+    ];
+    
+    return $responses[$intent['type']] ?? $responses['general'];
+}
+
+/**
+ * 関連補助金検索
+ */
+function gi_find_related_grants($message, $intent) {
+    $args = [
+        'post_type' => 'grant',
+        'posts_per_page' => 3,
+        'post_status' => 'publish',
+        'orderby' => 'meta_value_num',
+        'meta_key' => 'grant_success_rate',
+        'order' => 'DESC'
+    ];
+    
+    $query = new WP_Query($args);
+    $grants = [];
+    
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $grants[] = [
+                'id' => get_the_ID(),
+                'title' => get_the_title(),
+                'permalink' => get_permalink(),
+                'amount' => get_post_meta(get_the_ID(), 'max_amount', true)
+            ];
+        }
+        wp_reset_postdata();
+    }
+    
+    return $grants;
+}
+
+/**
+ * フォローアップ質問生成
+ */
+function gi_generate_follow_up_questions($intent, $message) {
+    $questions = [
+        'grant_search' => [
+            '業種を教えてください',
+            '従業員数は何名ですか？',
+            '希望する支援額はいくらですか？'
+        ],
+        'application_help' => [
+            '申請書類の準備はお済みですか？',
+            '過去に補助金申請の経験はありますか？',
+            '申請期限はいつまでですか？'
+        ],
+        'general' => [
+            '具体的にどのような支援をお探しですか？',
+            '御社の事業内容を教えてください',
+            '補助金の使途は決まっていますか？'
+        ]
+    ];
+    
+    return $questions[$intent['type']] ?? $questions['general'];
+}
+
+/**
+ * 会話コンテキスト管理
+ */
+function gi_get_conversation_context($session_id) {
+    if (!$session_id) return [];
+    return get_transient('gi_chat_context_' . $session_id) ?: [];
+}
+
+function gi_save_conversation_context($session_id, $context) {
+    if (!$session_id) return;
+    // 最新10件のみ保持
+    $context = array_slice($context, -10);
+    set_transient('gi_chat_context_' . $session_id, $context, 3600);
+}
+
+/**
+ * 検索セッション保存
+ */
+function gi_save_search_session($session_id, $query, $results) {
+    if (!$session_id) return;
+    
+    $session_data = [
+        'query' => $query,
+        'results' => array_slice($results, 0, 5),
+        'timestamp' => current_time('timestamp')
+    ];
+    
+    set_transient('gi_search_session_' . $session_id, $session_data, 3600);
+}
+
+/**
+ * 人気検索キーワード取得
+ */
+function gi_get_popular_searches() {
+    // 実装時はデータベースから取得
+    return [
+        'IT導入補助金',
+        'ものづくり補助金',
+        '事業再構築補助金',
+        '小規模事業者持続化補助金'
+    ];
+}
+
+/**
+ * 補助金タイトル候補取得
+ */
+function gi_get_grant_title_suggestions($query) {
+    global $wpdb;
+    
+    $results = $wpdb->get_col($wpdb->prepare(
+        "SELECT post_title FROM {$wpdb->posts} 
+        WHERE post_type = 'grant' 
+        AND post_status = 'publish' 
+        AND post_title LIKE %s 
+        LIMIT 5",
+        '%' . $wpdb->esc_like($query) . '%'
+    ));
+    
+    return $results ?: [];
+}
+
+/**
+ * カテゴリー候補取得
+ */
+function gi_get_category_suggestions($query) {
+    $categories = get_terms([
+        'taxonomy' => 'grant_category',
+        'hide_empty' => false,
+        'name__like' => $query
+    ]);
+    
+    return wp_list_pluck($categories, 'name');
+}
+
+/**
+ * 音声データのテキスト変換（スタブ）
+ */
+function gi_transcribe_audio($audio_data) {
+    // 実装時は音声認識APIを使用
+    // 現在はダミーデータを返す
+    return '補助金を探しています';
+}
+
+/**
  * AJAX エラーログ記録
  */
 function gi_ajax_log_error($message, $data = null) {

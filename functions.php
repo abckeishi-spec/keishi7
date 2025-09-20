@@ -314,5 +314,164 @@ function gi_theme_version_upgrade() {
 add_action('init', 'gi_theme_version_upgrade');
 
 /**
+ * データベーステーブル作成
+ */
+function gi_create_database_tables() {
+    global $wpdb;
+    
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    // AI検索履歴テーブル
+    $search_history_table = $wpdb->prefix . 'gi_search_history';
+    $sql1 = "CREATE TABLE IF NOT EXISTS $search_history_table (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        session_id varchar(255) NOT NULL,
+        user_id bigint(20) unsigned DEFAULT NULL,
+        search_query text NOT NULL,
+        search_filter varchar(50) DEFAULT NULL,
+        results_count int(11) DEFAULT 0,
+        clicked_results text DEFAULT NULL,
+        created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id),
+        KEY user_id (user_id),
+        KEY created_at (created_at)
+    ) $charset_collate;";
+    
+    // AIチャット履歴テーブル
+    $chat_history_table = $wpdb->prefix . 'gi_chat_history';
+    $sql2 = "CREATE TABLE IF NOT EXISTS $chat_history_table (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        session_id varchar(255) NOT NULL,
+        user_id bigint(20) unsigned DEFAULT NULL,
+        message_type enum('user','assistant') NOT NULL DEFAULT 'user',
+        message text NOT NULL,
+        intent varchar(100) DEFAULT NULL,
+        confidence decimal(3,2) DEFAULT NULL,
+        related_grants text DEFAULT NULL,
+        created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id),
+        KEY user_id (user_id),
+        KEY created_at (created_at)
+    ) $charset_collate;";
+    
+    // 音声入力履歴テーブル
+    $voice_history_table = $wpdb->prefix . 'gi_voice_history';
+    $sql3 = "CREATE TABLE IF NOT EXISTS $voice_history_table (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        session_id varchar(255) NOT NULL,
+        user_id bigint(20) unsigned DEFAULT NULL,
+        transcribed_text text NOT NULL,
+        confidence decimal(3,2) DEFAULT NULL,
+        duration int(11) DEFAULT NULL,
+        created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY session_id (session_id),
+        KEY user_id (user_id)
+    ) $charset_collate;";
+    
+    // ユーザー設定テーブル
+    $user_preferences_table = $wpdb->prefix . 'gi_user_preferences';
+    $sql4 = "CREATE TABLE IF NOT EXISTS $user_preferences_table (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        user_id bigint(20) unsigned NOT NULL,
+        preference_key varchar(100) NOT NULL,
+        preference_value text DEFAULT NULL,
+        updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY user_preference (user_id, preference_key)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql1);
+    dbDelta($sql2);
+    dbDelta($sql3);
+    dbDelta($sql4);
+    
+    // バージョン管理
+    update_option('gi_db_version', '1.0.0');
+}
+
+// テーマ有効化時にテーブル作成
+add_action('after_switch_theme', 'gi_create_database_tables');
+
+// 既存のインストールでもテーブル作成を確認
+add_action('init', function() {
+    $db_version = get_option('gi_db_version', '0');
+    if (version_compare($db_version, '1.0.0', '<')) {
+        gi_create_database_tables();
+    }
+});
+
+/**
+ * 検索履歴の保存
+ */
+function gi_save_search_history($session_id, $query, $filter, $results_count) {
+    global $wpdb;
+    
+    $table = $wpdb->prefix . 'gi_search_history';
+    $wpdb->insert(
+        $table,
+        [
+            'session_id' => $session_id,
+            'user_id' => get_current_user_id() ?: null,
+            'search_query' => $query,
+            'search_filter' => $filter,
+            'results_count' => $results_count
+        ],
+        ['%s', '%d', '%s', '%s', '%d']
+    );
+    
+    return $wpdb->insert_id;
+}
+
+/**
+ * チャット履歴の保存
+ */
+function gi_save_chat_history($session_id, $message_type, $message, $intent = null, $confidence = null, $related_grants = null) {
+    global $wpdb;
+    
+    $table = $wpdb->prefix . 'gi_chat_history';
+    $wpdb->insert(
+        $table,
+        [
+            'session_id' => $session_id,
+            'user_id' => get_current_user_id() ?: null,
+            'message_type' => $message_type,
+            'message' => $message,
+            'intent' => $intent,
+            'confidence' => $confidence,
+            'related_grants' => is_array($related_grants) ? json_encode($related_grants) : $related_grants
+        ],
+        ['%s', '%d', '%s', '%s', '%s', '%f', '%s']
+    );
+    
+    return $wpdb->insert_id;
+}
+
+/**
+ * 音声入力履歴の保存
+ */
+function gi_save_voice_history($session_id, $text, $confidence = null, $duration = null) {
+    global $wpdb;
+    
+    $table = $wpdb->prefix . 'gi_voice_history';
+    $wpdb->insert(
+        $table,
+        [
+            'session_id' => $session_id,
+            'user_id' => get_current_user_id() ?: null,
+            'transcribed_text' => $text,
+            'confidence' => $confidence,
+            'duration' => $duration
+        ],
+        ['%s', '%d', '%s', '%f', '%d']
+    );
+    
+    return $wpdb->insert_id;
+}
+
+/**
  * AJAXハンドラーの登録確認
  */
