@@ -473,5 +473,24 @@ function gi_save_voice_history($session_id, $text, $confidence = null, $duration
 }
 
 /**
+ * AI検索AJAXハンドラーの早期登録（優先度高）
+ */
+function gi_register_ai_ajax_handlers() {
+    // テスト用のシンプルなハンドラー
+    add_action('wp_ajax_gi_test_connection', function() {
+        wp_send_json_success(['message' => 'Connection successful', 'time' => current_time('Y-m-d H:i:s')]);
+    });
+    add_action('wp_ajax_nopriv_gi_test_connection', function() {
+        wp_send_json_success(['message' => 'Connection successful (nopriv)', 'time' => current_time('Y-m-d H:i:s')]);
+    });
+    
+    // AI検索とチャットのハンドラーが存在することを確認
+    if (!has_action('wp_ajax_gi_ai_search')) {
+        require_once get_template_directory() . '/3-ajax-functions.php';
+    }
+}
+add_action('init', 'gi_register_ai_ajax_handlers', 5);
+
+/**
  * AJAXハンドラーの登録確認
  */

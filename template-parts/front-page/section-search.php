@@ -1084,12 +1084,19 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 
     // Configuration
     const CONFIG = {
-        API_URL: '<?php echo admin_url("admin-ajax.php"); ?>',
-        NONCE: '<?php echo $nonce; ?>',
-        SESSION_ID: '<?php echo $session_id; ?>',
+        API_URL: '<?php echo esc_url(admin_url("admin-ajax.php")); ?>',
+        NONCE: '<?php echo esc_js($nonce); ?>',
+        SESSION_ID: '<?php echo esc_js($session_id); ?>',
         TYPING_DELAY: 30,
         DEBOUNCE_DELAY: 300,
     };
+    
+    // Debug: AJAXのURLとnonceを確認
+    console.log('AJAX Configuration:', {
+        url: CONFIG.API_URL,
+        nonce: CONFIG.NONCE,
+        session: CONFIG.SESSION_ID
+    });
 
     // AI Search Controller
     class AISearchController {
@@ -1112,6 +1119,26 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
             this.bindEvents();
             this.initAnimations();
             this.animateStats();
+            this.testConnection(); // テスト接続
+        }
+
+        // AJAXテスト接続
+        async testConnection() {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'gi_test_connection');
+                
+                const response = await fetch(CONFIG.API_URL, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                console.log('Test connection result:', data);
+            } catch (error) {
+                console.error('Test connection failed:', error);
+            }
         }
 
         cacheElements() {
@@ -1282,6 +1309,15 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
                 formData.append('query', query);
                 formData.append('filter', this.state.currentFilter);
                 formData.append('session_id', CONFIG.SESSION_ID);
+
+                // Debug: リクエストの詳細を表示
+                console.log('Sending search request:', {
+                    url: CONFIG.API_URL,
+                    action: 'gi_ai_search',
+                    nonce: CONFIG.NONCE,
+                    query: query,
+                    filter: this.state.currentFilter
+                });
 
                 const response = await fetch(CONFIG.API_URL, {
                     method: 'POST',
