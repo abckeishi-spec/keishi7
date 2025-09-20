@@ -76,24 +76,58 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
             <div class="ai-main-content">
                 
                 <!-- Left: AI Assistant -->
-                <div class="ai-assistant-panel">
+                <div class="ai-assistant-panel" data-concierge="ultimate">
                     <div class="assistant-header">
                         <div class="assistant-avatar">
-                            <div class="avatar-ring"></div>
-                            <span class="avatar-icon">AI</span>
+                            <div class="ai-avatar-animated">
+                                <div class="ai-avatar-ring"></div>
+                                <span class="avatar-text">AI</span>
+                            </div>
                         </div>
+                        <div class="emotion-indicator" title="AI感情状態"></div>
                         <div class="assistant-info">
-                            <h3 class="assistant-name">補助金AIアシスタント</h3>
-                            <span class="assistant-status">オンライン</span>
+                            <h3 class="assistant-name">補助金AIコンシェルジュ Ultimate</h3>
+                            <span class="assistant-status" data-status="online">オンライン・24/7対応中</span>
                         </div>
                     </div>
                     
                     <div class="chat-messages" id="chat-messages">
-                        <div class="message message-ai">
-                            <div class="message-bubble">
-                                どのような補助金をお探しですか？<br>
-                                業種や目的をお聞かせください。
+                        <div class="message message-ai fade-in show">
+                            <div class="message-avatar">
+                                <div class="ai-avatar-animated">
+                                    <div class="ai-avatar-ring"></div>
+                                    <span class="avatar-text">AI</span>
+                                </div>
                             </div>
+                            <div class="message-content">
+                                <div class="message-bubble">
+                                    こんにちは！私は最新AI技術を搭載した補助金コンシェルジュです。<br>
+                                    <strong>以下のようなご相談に対応できます：</strong><br>
+                                    • 🔍 あなたに最適な補助金の検索<br>
+                                    • 📝 申請手続きの詳細な説明<br>
+                                    • 📊 採択率向上のアドバイス<br>
+                                    • ⏰ 締切日程の管理<br>
+                                    <br>
+                                    どのようなご要望でもお気軽にお聞かせください！
+                                </div>
+                                <div class="message-timestamp"><?php echo date('H:i'); ?></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistics Display -->
+                    <div class="chat-stats" id="chat-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">応答時間</span>
+                            <span class="stat-value" id="response-time">0.3秒</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">満足度</span>
+                            <span class="stat-value" id="satisfaction">98%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">解決率</span>
+                            <span class="stat-value" id="resolution">95%</span>
                         </div>
                     </div>
                     
@@ -115,10 +149,12 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 
                     <!-- Quick Questions -->
                     <div class="quick-questions">
-                        <button class="quick-q" data-q="申請の流れを教えて">申請の流れ</button>
-                        <button class="quick-q" data-q="必要書類は？">必要書類</button>
-                        <button class="quick-q" data-q="締切はいつ？">締切確認</button>
-                        <button class="quick-q" data-q="採択率は？">採択率</button>
+                        <button class="quick-q" data-q="IT導入補助金について詳しく教えて"><span>💻 IT導入補助金</span></button>
+                        <button class="quick-q" data-q="ものづくり補助金の申請方法"><span>🏭 ものづくり補助金</span></button>
+                        <button class="quick-q" data-q="事業再構築補助金の要件は？"><span>🔄 事業再構築</span></button>
+                        <button class="quick-q" data-q="小規模事業者持続化補助金"><span>🏪 持続化補助金</span></button>
+                        <button class="quick-q" data-q="私に合う補助金を探して"><span>🎯 オススメ検索</span></button>
+                        <button class="quick-q" data-q="申請スケジュールを作成して"><span>📅 スケジュール</span></button>
                     </div>
                 </div>
 
@@ -232,6 +268,10 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
         </div>
     </div>
 </section>
+
+<!-- AI Concierge Ultimate Scripts & Styles -->
+<link rel="stylesheet" href="<?php echo get_template_directory_uri(); ?>/assets/css/ai-concierge-ultimate.css?v=2.0.0">
+<script src="<?php echo get_template_directory_uri(); ?>/assets/js/ai-concierge-ultimate.js?v=2.0.0" defer></script>
 
 <style>
 /* AI Search Section Styles */
@@ -480,41 +520,80 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     margin-bottom: 48px;
 }
 
-/* AI Assistant Panel */
+/* AI Assistant Panel - Premium Design */
 .ai-assistant-panel {
-    background: #fafafa;
-    border-radius: 20px;
-    border: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 24px;
     display: flex;
     flex-direction: column;
-    height: 600px;
+    height: 680px;
+    box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.ai-assistant-panel::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    animation: float 20s infinite linear;
+}
+
+@keyframes float {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .assistant-header {
-    padding: 20px;
-    border-bottom: 1px solid #e0e0e0;
+    padding: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 2;
 }
 
 .assistant-avatar {
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
 }
 
 .avatar-ring {
     position: absolute;
-    inset: 0;
-    border: 2px solid #000;
+    inset: -4px;
+    border: 3px solid;
+    border-image: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #667eea) 1;
     border-radius: 50%;
+    animation: rotateGradient 3s infinite linear;
+}
+
+.avatar-ring::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    opacity: 0.5;
+    filter: blur(10px);
     animation: pulse 2s infinite;
 }
 
+@keyframes rotateGradient {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.05); }
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.1); }
 }
 
 .avatar-icon {
@@ -523,69 +602,183 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #000;
+    background: linear-gradient(135deg, #667eea, #764ba2);
     color: #fff;
     border-radius: 50%;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 900;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.assistant-info {
+    flex: 1;
 }
 
 .assistant-name {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
     margin: 0;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .assistant-status {
-    font-size: 11px;
-    color: #10b981;
+    font-size: 12px;
+    color: #a5f3fc;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
 }
 
-/* Chat Messages */
+.assistant-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #10f981;
+    border-radius: 50%;
+    animation: blink 1s infinite;
+    box-shadow: 0 0 10px #10f981;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Chat Messages - Premium Style */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    position: relative;
+    z-index: 1;
+}
+
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 3px;
 }
 
 .message {
     display: flex;
     gap: 12px;
-    animation: messageIn 0.3s ease-out;
+    animation: messageIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    position: relative;
 }
 
 @keyframes messageIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { 
+        opacity: 0; 
+        transform: translateY(20px) scale(0.9);
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0) scale(1);
+    }
 }
 
 .message-user {
     flex-direction: row-reverse;
 }
 
+.message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.message-ai .message-avatar {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.message-user .message-avatar {
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+    box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3);
+}
+
 .message-bubble {
-    max-width: 80%;
-    padding: 12px 16px;
-    background: #fff;
-    border-radius: 16px;
-    font-size: 13px;
-    line-height: 1.6;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    max-width: 75%;
+    padding: 14px 18px;
+    border-radius: 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    position: relative;
+    word-wrap: break-word;
+}
+
+.message-ai .message-bubble {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    border-bottom-left-radius: 4px;
 }
 
 .message-user .message-bubble {
-    background: #000;
-    color: #fff;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    color: #212529;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-bottom-right-radius: 4px;
 }
 
-/* Chat Input */
+.message-bubble::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 0;
+    height: 0;
+}
+
+.message-ai .message-bubble::before {
+    left: -8px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 12px solid #667eea;
+}
+
+.message-user .message-bubble::before {
+    right: -8px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 12px solid #e9ecef;
+}
+
+.message-timestamp {
+    font-size: 10px;
+    opacity: 0.7;
+    margin-top: 4px;
+    display: block;
+}
+
+/* Chat Input - Modern Style */
 .chat-input-area {
-    padding: 16px;
-    border-top: 1px solid #e0e0e0;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    border-top: 1px solid rgba(102, 126, 234, 0.2);
     position: relative;
+    backdrop-filter: blur(10px);
 }
 
 .typing-indicator {
@@ -614,6 +807,17 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
 @keyframes typing {
     0%, 60%, 100% { transform: translateY(0); }
     30% { transform: translateY(-10px); }
+}
+
+@keyframes cursorBlink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.typing-cursor {
+    color: #667eea;
+    font-weight: 100;
+    margin-left: 2px;
 }
 
 .chat-input {
@@ -1499,32 +1703,142 @@ $nonce = wp_create_nonce('gi_ai_search_nonce');
         addChatMessage(text, type) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message message-${type}`;
-            messageDiv.innerHTML = `<div class="message-bubble">${text}</div>`;
             
+            // アバター追加
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = type === 'user' ? 'You' : 'AI';
+            messageDiv.appendChild(avatar);
+            
+            // メッセージバブル
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            
+            // テキストを処理（改行やリンクなど）
+            let processedText = text
+                .replace(/\n/g, '<br>')
+                .replace(/【([^】]+)】/g, '<strong>$1</strong>')
+                .replace(/https?:\/\/[^\s]+/g, '<a href="$&" target="_blank" rel="noopener">$&</a>');
+            
+            bubble.innerHTML = processedText;
+            
+            // タイムスタンプ
+            const timestamp = document.createElement('span');
+            timestamp.className = 'message-timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            bubble.appendChild(timestamp);
+            
+            messageDiv.appendChild(bubble);
+            
+            // アニメーション付きで追加
+            messageDiv.style.opacity = '0';
             this.elements.chatMessages.appendChild(messageDiv);
+            
+            // フェードインアニメーション
+            setTimeout(() => {
+                messageDiv.style.transition = 'opacity 0.3s ease';
+                messageDiv.style.opacity = '1';
+            }, 10);
+            
             this.scrollChatToBottom();
+            
+            // メッセージ追加時の効果音（オプション）
+            this.playSound('message');
+        }
+        
+        // サウンドエフェクト（オプション）
+        playSound(type) {
+            if (this.state.soundEnabled) {
+                const audio = new Audio();
+                switch(type) {
+                    case 'message':
+                        // メッセージ音のデータURI（軽量な音）
+                        audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn...';
+                        audio.volume = 0.3;
+                        audio.play().catch(() => {});
+                        break;
+                }
+            }
         }
 
-        typeMessage(text) {
+        typeMessage(text, callback) {
+            // AIアバターを作成
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message message-ai';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = 'AI';
+            messageDiv.appendChild(avatar);
+            
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble';
             messageDiv.appendChild(bubble);
             
+            // タイムスタンプ
+            const timestamp = document.createElement('span');
+            timestamp.className = 'message-timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            
             this.elements.chatMessages.appendChild(messageDiv);
             
+            // 高度なタイピングアニメーション
             let index = 0;
-            const typeChar = () => {
+            const words = text.split(' ');
+            let currentText = '';
+            
+            // カーソルエフェクト
+            const cursor = document.createElement('span');
+            cursor.className = 'typing-cursor';
+            cursor.textContent = '▊';
+            cursor.style.animation = 'cursorBlink 0.7s infinite';
+            
+            const typeWord = () => {
                 if (index < text.length) {
-                    bubble.textContent += text[index];
+                    // 特殊文字の処理
+                    if (text[index] === '\n') {
+                        currentText += '<br>';
+                        bubble.innerHTML = currentText + cursor.outerHTML;
+                    } else if (text[index] === '【') {
+                        // 強調表示の開始
+                        currentText += '<strong>';
+                        bubble.innerHTML = currentText + cursor.outerHTML;
+                    } else if (text[index] === '】') {
+                        // 強調表示の終了
+                        currentText += '</strong>';
+                        bubble.innerHTML = currentText + cursor.outerHTML;
+                    } else if (text[index] === '•') {
+                        // リストアイテム
+                        currentText += '<span style="color: #667eea;">•</span>';
+                        bubble.innerHTML = currentText + cursor.outerHTML;
+                    } else {
+                        currentText += text[index];
+                        bubble.innerHTML = currentText + cursor.outerHTML;
+                    }
+                    
                     index++;
                     this.scrollChatToBottom();
-                    setTimeout(typeChar, CONFIG.TYPING_DELAY);
+                    
+                    // 可変速度タイピング（句読点で遅く、それ以外は速く）
+                    let delay = CONFIG.TYPING_DELAY;
+                    if (text[index - 1] === '。' || text[index - 1] === '、') {
+                        delay = CONFIG.TYPING_DELAY * 3;
+                    } else if (text[index - 1] === '\n') {
+                        delay = CONFIG.TYPING_DELAY * 5;
+                    }
+                    
+                    setTimeout(typeWord, delay);
+                } else {
+                    // タイピング完了
+                    bubble.innerHTML = currentText;
+                    bubble.appendChild(timestamp);
+                    
+                    // コールバック実行
+                    if (callback) callback();
                 }
             };
             
-            typeChar();
+            typeWord();
         }
 
         handleQuickQuestion(e) {

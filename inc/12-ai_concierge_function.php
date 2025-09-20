@@ -120,15 +120,21 @@ class GI_AI_Concierge {
      * WordPress フック登録
      */
     private function register_hooks() {
-        // AJAX エンドポイント
-        add_action('wp_ajax_gi_ai_chat', [$this, 'handle_ai_chat']);
-        add_action('wp_ajax_nopriv_gi_ai_chat', [$this, 'handle_ai_chat']);
-        add_action('wp_ajax_gi_semantic_search', [$this, 'handle_semantic_search']);
-        add_action('wp_ajax_nopriv_gi_semantic_search', [$this, 'handle_semantic_search']);
-        add_action('wp_ajax_gi_search_suggestions', [$this, 'handle_search_suggestions']);
-        add_action('wp_ajax_nopriv_gi_search_suggestions', [$this, 'handle_search_suggestions']);
-        add_action('wp_ajax_gi_conversation_feedback', [$this, 'handle_conversation_feedback']);
-        add_action('wp_ajax_nopriv_gi_conversation_feedback', [$this, 'handle_conversation_feedback']);
+        // AJAX エンドポイント（優先度変更により3-ajax-functions.phpと競合回避）
+        add_action('wp_ajax_gi_concierge_chat', [$this, 'handle_ai_chat'], 5);
+        add_action('wp_ajax_nopriv_gi_concierge_chat', [$this, 'handle_ai_chat'], 5);
+        add_action('wp_ajax_gi_concierge_search', [$this, 'handle_semantic_search'], 5);
+        add_action('wp_ajax_nopriv_gi_concierge_search', [$this, 'handle_semantic_search'], 5);
+        add_action('wp_ajax_gi_concierge_suggestions', [$this, 'handle_search_suggestions'], 5);
+        add_action('wp_ajax_nopriv_gi_concierge_suggestions', [$this, 'handle_search_suggestions'], 5);
+        add_action('wp_ajax_gi_concierge_feedback', [$this, 'handle_conversation_feedback'], 5);
+        add_action('wp_ajax_nopriv_gi_concierge_feedback', [$this, 'handle_conversation_feedback'], 5);
+        
+        // 新規エンドポイント
+        add_action('wp_ajax_gi_concierge_analytics', [$this, 'handle_get_analytics']);
+        add_action('wp_ajax_nopriv_gi_concierge_analytics', [$this, 'handle_get_analytics']);
+        add_action('wp_ajax_gi_concierge_voice', [$this, 'handle_voice_synthesis']);
+        add_action('wp_ajax_nopriv_gi_concierge_voice', [$this, 'handle_voice_synthesis']);
         
         // 管理画面
         add_action('admin_menu', [$this, 'add_admin_menu']);

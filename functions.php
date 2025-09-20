@@ -32,7 +32,8 @@ $required_files = array(
     '8-acf-fields-setup.php',         // ACFフィールド定義
     '9-mobile-optimization.php',      // モバイル最適化機能
     '10-performance-helpers.php',      // パフォーマンス最適化ヘルパー
-    '12-ai_concierge_function.php'      // パフォーマンス最適化ヘルパー
+    '12-ai_concierge_function.php',     // AI コンシェルジュ機能
+    '13-ai-concierge-classes.php'      // AI コンシェルジュ サポートクラス
 );
 
 // 各ファイルを安全に読み込み
